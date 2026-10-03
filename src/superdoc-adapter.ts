@@ -19,6 +19,7 @@ import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 import type { DocumentMode, EditorUser } from "./protocol";
 import type { EditorAdapter } from "./bridge";
+import { asMarkdownParagraphs, cleanText, failure } from "./text";
 
 export interface SuperDocAdapterOptions {
   /** CSS selector of the element the document is drawn in. */
@@ -38,19 +39,6 @@ export function succeeded(result: unknown): boolean {
     result !== null &&
     (result as { success?: unknown }).success === true
   );
-}
-
-/** Why a receipt failed, in words, when it says. */
-function failure(result: unknown): string {
-  if (typeof result !== "object" || result === null) {
-    return "The text could not be put into the document.";
-  }
-  const failed = (result as { failure?: { message?: unknown; code?: unknown } })
-    .failure;
-  const said = failed?.message ?? failed?.code;
-  return typeof said === "string" && said
-    ? said
-    : "The text could not be put into the document.";
 }
 
 export class SuperDocAdapter implements EditorAdapter {
@@ -150,10 +138,36 @@ export class SuperDocAdapter implements EditorAdapter {
     }
     // The Document API ignores the suggesting mode, so ask for tracking.
     const tracked = { changeMode: "tracked" as const };
-    const result: unknown = replaceSelection
-      ? await doc.replace({ target, text }, tracked)
-      : await doc.insert({ target, value: text }, tracked);
-    if (!succeeded(result)) throw new Error(failure(result));
+    const clean = cleanText(text);
+    if (!clean) throw new Error("There is no text to put in.");
+    const [first = "", ...rest] = clean.split("\n").filter((l) => l.trim());
+    // The first line goes in where the person chose, as plain text.
+    const placed: unknown = replaceSelection
+      ? await doc.replace({ target, text: first.trim() }, tracked)
+      : await doc.insert({ target, value: first.trim() }, tracked);
+    if (!succeeded(placed)) throw new Error(failure(placed));
+    if (rest.length === 0) return;
+    // Plain text cannot carry a line break, and Markdown cannot go in the
+    // middle of a paragraph, so further lines become new paragraphs after
+    // the paragraph the first line went into.
+    const end = target.end;
+    if (end.kind !== "text") {
+      throw new Error("Only the first line could be put in here.");
+    }
+    const { address: block } = await doc.getNodeById({ nodeId: end.blockId });
+    if (block.kind !== "block") {
+      throw new Error("Only the first line could be put in here.");
+    }
+    const after: unknown = await doc.insert(
+      {
+        target: block,
+        placement: "after",
+        value: asMarkdownParagraphs(rest.join("\n")),
+        type: "markdown",
+      },
+      tracked,
+    );
+    if (!succeeded(after)) throw new Error(failure(after));
   }
 
   setMode(mode: DocumentMode): void {

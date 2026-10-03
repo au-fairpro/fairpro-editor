@@ -29,7 +29,11 @@ it, and hands the bytes back when FairPro asks.
    panel can work on it. FairPro sends `insertText` to put the person's
    chosen wording at the cursor or in place of the selection; it arrives
    as a tracked change under the person's name (SuperDoc's Document API with
-   `changeMode: "tracked"`), and the editor answers `inserted`.
+   `changeMode: "tracked"`), and the editor answers `inserted`. Text of
+   several lines goes in line by line: the first line at the cursor (or in
+   place of the selection), the rest as new paragraphs after that
+   paragraph, since SuperDoc's plain-text insert refuses line breaks. Tabs
+   become spaces and other control characters are dropped.
 
 ### Messages
 
