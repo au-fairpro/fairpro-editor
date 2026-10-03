@@ -4,6 +4,7 @@
 
 import {
   envelope,
+  MAX_SELECTION_CHARS,
   parseParentMessage,
   type DocumentMode,
   type EditorMessage,
@@ -21,10 +22,21 @@ export const ACTIVITY_INTERVAL_MS = 60_000;
 export interface EditorAdapter {
   open(
     file: File,
-    options: { user: EditorUser; mode: DocumentMode; onChange: () => void },
+    options: {
+      user: EditorUser;
+      mode: DocumentMode;
+      onChange: () => void;
+      /** The selected text, or "" when nothing is selected. */
+      onSelection: (text: string) => void;
+    },
   ): Promise<void>;
   exportDocx(): Promise<Blob>;
   setMode(mode: DocumentMode): void;
+  /** Inserts at the cursor, or in place of the last selection; throws on failure. */
+  insertText(
+    text: string,
+    options: { replaceSelection: boolean },
+  ): Promise<void>;
   close(): void;
 }
 
@@ -71,6 +83,9 @@ export class Bridge {
   /** The origin driving the editor, fixed by the first valid message. */
   private parentOrigin: string | null = null;
   private isOpen = false;
+  private mode: DocumentMode = "viewing";
+  /** The selection last reported to FairPro, so only changes are sent. */
+  private selection = "";
   private fileName = "";
   private dirty = false;
   private lastActivity = Number.NEGATIVE_INFINITY;
@@ -149,13 +164,64 @@ export class Bridge {
           return;
         }
         this.adapter.setMode(message.mode);
+        this.mode = message.mode;
         if (message.mode !== "viewing") this.ui.banner(null);
         return;
       case "lockLost":
         if (this.isOpen) this.adapter.setMode("viewing");
+        this.mode = "viewing";
         this.ui.banner(message.message);
         return;
+      case "insertText":
+        return this.insert(message);
     }
+  }
+
+  private async insert(
+    message: Extract<ParentMessage, { type: "insertText" }>,
+  ): Promise<void> {
+    const { requestId } = message;
+    if (!this.isOpen) {
+      this.send({
+        type: "error",
+        code: "not_open",
+        message: "No document is open.",
+        requestId,
+      });
+      return;
+    }
+    if (this.mode === "viewing") {
+      this.send({
+        type: "error",
+        code: "insert_failed",
+        message: "The document is read-only.",
+        requestId,
+      });
+      return;
+    }
+    if (message.replaceSelection && this.selection === "") {
+      this.send({
+        type: "error",
+        code: "insert_failed",
+        message: "Select the text to replace first.",
+        requestId,
+      });
+      return;
+    }
+    try {
+      await this.adapter.insertText(message.text, {
+        replaceSelection: message.replaceSelection,
+      });
+    } catch (error) {
+      this.send({
+        type: "error",
+        code: "insert_failed",
+        message: describe(error),
+        requestId,
+      });
+      return;
+    }
+    this.send({ type: "inserted", requestId });
   }
 
   private async open(
@@ -166,6 +232,7 @@ export class Bridge {
       this.isOpen = false;
     }
     this.dirty = false;
+    this.selection = "";
     this.ui.banner(null);
     this.ui.status(`Opening ${message.fileName}.`);
     const file = new File([message.bytes], message.fileName, {
@@ -178,6 +245,9 @@ export class Bridge {
         onChange: () => {
           this.changed();
         },
+        onSelection: (text) => {
+          this.selected(text);
+        },
       });
     } catch (error) {
       this.ui.status("The document could not be opened.");
@@ -189,6 +259,7 @@ export class Bridge {
       return;
     }
     this.isOpen = true;
+    this.mode = message.mode;
     this.fileName = message.fileName;
     this.ui.status(`${message.fileName} is open.`);
     this.send({ type: "loaded", fileName: message.fileName });
@@ -223,6 +294,16 @@ export class Bridge {
     ]);
     this.dirty = false;
     this.send({ type: "dirty", dirty: false });
+  }
+
+  private selected(text: string): void {
+    if (text === this.selection) return;
+    this.selection = text;
+    this.send({
+      type: "selection",
+      text: text.slice(0, MAX_SELECTION_CHARS),
+      truncated: text.length > MAX_SELECTION_CHARS,
+    });
   }
 
   private changed(): void {

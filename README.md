@@ -25,11 +25,18 @@ it, and hands the bytes back when FairPro asks.
    FairPro checks the version and the lock before storing anything.
 5. If another person takes the lock, FairPro sends `lockLost`; the editor
    switches to read-only and shows FairPro's message.
+6. The editor reports the selected text in `selection`, so FairPro's AI
+   panel can work on it. FairPro sends `insertText` to put the person's
+   chosen wording at the cursor or in place of the selection; it arrives
+   as a tracked change under the person's name (SuperDoc's Document API with
+   `changeMode: "tracked"`), and the editor answers `inserted`.
 
 ### Messages
 
 Every message carries `source` (`"fairpro"` from FairPro, `"fairpro-editor"`
-from the editor) and `v: 1`. The shapes are in
+from the editor) and `v: 1`. `selection`, `insertText` and `inserted` were
+added to version 1 on 3 October 2026; an older FairPro never sends or reads
+them, so the version did not change. The shapes are in
 [`src/protocol.ts`](src/protocol.ts).
 
 | From FairPro | Fields                                     |
@@ -38,6 +45,7 @@ from the editor) and `v: 1`. The shapes are in
 | `save`       | `requestId`                                |
 | `setMode`    | `mode`: `editing`, `suggesting`, `viewing` |
 | `lockLost`   | `message`                                  |
+| `insertText` | `requestId`, `text`, `replaceSelection`    |
 
 | From the editor | Fields                                         |
 | --------------- | ---------------------------------------------- |
@@ -46,6 +54,8 @@ from the editor) and `v: 1`. The shapes are in
 | `dirty`         | `dirty`                                        |
 | `activity`      |                                                |
 | `saved`         | `requestId`, `fileName`, `bytes`               |
+| `selection`     | `text` (at most 4,000 characters), `truncated` |
+| `inserted`      | `requestId`                                    |
 | `error`         | `code`, `message`, `requestId` when it has one |
 
 ### Security

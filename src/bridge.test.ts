@@ -17,14 +17,28 @@ class FakeAdapter implements EditorAdapter {
   failOpen: Error | null = null;
   exportResult: Blob | Error = new Blob([new Uint8Array([80, 75, 3, 4])]);
   onChange: () => void = () => undefined;
+  onSelection: (text: string) => void = () => undefined;
+  inserted: { text: string; replaceSelection: boolean }[] = [];
+  failInsert: Error | null = null;
 
   open(
     file: File,
-    options: { user: EditorUser; mode: DocumentMode; onChange: () => void },
+    options: {
+      user: EditorUser;
+      mode: DocumentMode;
+      onChange: () => void;
+      onSelection: (text: string) => void;
+    },
   ) {
     if (this.failOpen) return Promise.reject(this.failOpen);
     this.opened.push({ file, mode: options.mode, user: options.user });
     this.onChange = options.onChange;
+    this.onSelection = options.onSelection;
+    return Promise.resolve();
+  }
+  insertText(text: string, options: { replaceSelection: boolean }) {
+    if (this.failInsert) return Promise.reject(this.failInsert);
+    this.inserted.push({ text, replaceSelection: options.replaceSelection });
     return Promise.resolve();
   }
   exportDocx() {
@@ -83,6 +97,14 @@ const openMessage = (mode = "suggesting") => ({
   bytes: new ArrayBuffer(4),
   user,
   mode,
+});
+const insert = (text: string, replaceSelection = false, requestId = "i1") => ({
+  source: "fairpro",
+  v: 1,
+  type: "insertText",
+  requestId,
+  text,
+  replaceSelection,
 });
 const save = (requestId = "r1") => ({
   source: "fairpro",
@@ -247,5 +269,86 @@ describe("Bridge", () => {
     const saving = t.deliver(save("r1"));
     await Promise.all([opening, saving]);
     expect(t.types()).toEqual(["loaded", "saved", "dirty"]);
+  });
+
+  it("reports the selected text when it changes, cut at the limit", async () => {
+    await t.deliver(openMessage());
+    t.adapter.onSelection("the Supplier");
+    t.adapter.onSelection("the Supplier");
+    t.adapter.onSelection("x".repeat(5000));
+    t.adapter.onSelection("");
+    const selections = t.sent
+      .map((s) => s.message)
+      .filter((m) => m.type === "selection");
+    expect(selections).toHaveLength(3);
+    expect(selections[0]).toMatchObject({
+      text: "the Supplier",
+      truncated: false,
+    });
+    expect(selections[1]?.text).toHaveLength(4000);
+    expect(selections[1]?.truncated).toBe(true);
+    expect(selections[2]).toMatchObject({ text: "", truncated: false });
+  });
+
+  it("inserts text at the cursor and says so", async () => {
+    await t.deliver(openMessage());
+    await t.deliver(insert("New clause.", false, "i9"));
+    expect(t.adapter.inserted).toEqual([
+      { text: "New clause.", replaceSelection: false },
+    ]);
+    expect(t.sent.at(-1)?.message).toMatchObject({
+      type: "inserted",
+      requestId: "i9",
+    });
+  });
+
+  it("replaces only when something is selected", async () => {
+    await t.deliver(openMessage());
+    await t.deliver(insert("Better words.", true, "i1"));
+    expect(t.adapter.inserted).toEqual([]);
+    expect(t.sent.at(-1)?.message).toMatchObject({
+      type: "error",
+      code: "insert_failed",
+      requestId: "i1",
+    });
+    t.adapter.onSelection("old words");
+    await t.deliver(insert("Better words.", true, "i2"));
+    expect(t.adapter.inserted).toEqual([
+      { text: "Better words.", replaceSelection: true },
+    ]);
+  });
+
+  it("refuses to insert when read-only or not open, and reports failures", async () => {
+    await t.deliver(insert("x", false, "i1"));
+    expect(t.sent.at(-1)?.message).toMatchObject({ code: "not_open" });
+    await t.deliver(openMessage("viewing"));
+    await t.deliver(insert("x", false, "i2"));
+    expect(t.sent.at(-1)?.message).toMatchObject({
+      code: "insert_failed",
+      message: "The document is read-only.",
+    });
+    await t.deliver(openMessage("suggesting"));
+    await t.deliver({
+      source: "fairpro",
+      v: 1,
+      type: "lockLost",
+      message: "m",
+    });
+    await t.deliver(insert("x", false, "i3"));
+    expect(t.sent.at(-1)?.message).toMatchObject({ code: "insert_failed" });
+    await t.deliver({
+      source: "fairpro",
+      v: 1,
+      type: "setMode",
+      mode: "suggesting",
+    });
+    t.adapter.failInsert = new Error("no document api");
+    await t.deliver(insert("x", false, "i4"));
+    expect(t.sent.at(-1)?.message).toMatchObject({
+      code: "insert_failed",
+      message: "no document api",
+      requestId: "i4",
+    });
+    expect(t.adapter.inserted).toEqual([]);
   });
 });

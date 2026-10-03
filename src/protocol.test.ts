@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { envelope, MAX_DOCUMENT_BYTES, parseParentMessage } from "./protocol";
+import {
+  envelope,
+  MAX_DOCUMENT_BYTES,
+  MAX_INSERT_CHARS,
+  parseParentMessage,
+} from "./protocol";
 
 const user = { name: "Test Person", email: "test@example.com" };
 const base = { source: "fairpro", v: 1 };
@@ -118,6 +123,43 @@ describe("parseParentMessage", () => {
       ok: false,
       reason: "unknown message type delete",
     });
+  });
+});
+
+describe("insertText", () => {
+  const insert = (overrides: Record<string, unknown> = {}) => ({
+    ...base,
+    type: "insertText",
+    requestId: "i1",
+    text: "The Supplier shall keep records.",
+    replaceSelection: false,
+    ...overrides,
+  });
+
+  it("accepts text to insert or to replace the selection with", () => {
+    expect(parseParentMessage({ ...insert(), extra: "dropped" })).toEqual({
+      ok: true,
+      message: {
+        type: "insertText",
+        requestId: "i1",
+        text: "The Supplier shall keep records.",
+        replaceSelection: false,
+      },
+    });
+    expect(parseParentMessage(insert({ replaceSelection: true })).ok).toBe(
+      true,
+    );
+  });
+
+  it("refuses empty or overlong text, a missing requestId or flag", () => {
+    expect(parseParentMessage(insert({ text: "" })).ok).toBe(false);
+    expect(
+      parseParentMessage(insert({ text: "x".repeat(MAX_INSERT_CHARS + 1) })).ok,
+    ).toBe(false);
+    expect(parseParentMessage(insert({ requestId: undefined })).ok).toBe(false);
+    expect(parseParentMessage(insert({ replaceSelection: "yes" })).ok).toBe(
+      false,
+    );
   });
 });
 
