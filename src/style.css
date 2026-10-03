@@ -1,0 +1,64 @@
+/* The page is only a frame for SuperDoc: toolbar, document, and a footer
+   with the status line and the source link. FairPro draws everything else. */
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  --border: #d4d4d8;
+  --muted: #52525b;
+  --warning-bg: #fef3c7;
+  --warning-text: #78350f;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #f4f4f5;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  flex: none;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+
+.banner {
+  flex: none;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.875rem;
+}
+
+.document {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.25rem 1rem;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.footer a {
+  color: var(--muted);
+}
+
+.footer a:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
