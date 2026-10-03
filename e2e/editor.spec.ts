@@ -158,3 +158,100 @@ test("ignores a page whose origin is not allowed", async ({ page }) => {
   await page.waitForTimeout(5000);
   expect(await received(page)).toEqual([]);
 });
+
+async function send(page: Page, message: object) {
+  await page.evaluate((m) => {
+    (window as unknown as { sendToEditor: (m: object) => void }).sendToEditor(
+      m,
+    );
+  }, message);
+}
+
+async function savedXml(page: Page): Promise<string> {
+  await send(page, { type: "save", requestId: "s1" });
+  await waitFor(page, "saved");
+  const bytes = await page.evaluate(() => {
+    const m = (window as unknown as { received: Received[] }).received.find(
+      (x) => x.type === "saved",
+    );
+    if (!m) throw new Error("no saved message");
+    return Array.from(new Uint8Array(m.bytes as ArrayBuffer));
+  });
+  return strFromU8(
+    unzipSync(new Uint8Array(bytes))["word/document.xml"] ?? new Uint8Array(),
+  );
+}
+
+test("reports the selection, and puts FairPro's text in as tracked changes", async ({
+  page,
+}) => {
+  const errors = watchSecurityErrors(page);
+  await page.goto("http://localhost:5181/");
+  await waitFor(page, "ready");
+  await openSample(page);
+  await waitFor(page, "loaded");
+
+  // Selecting a word is reported to FairPro.
+  const editor = page.frameLocator("#editor");
+  await editor
+    .locator(".superdoc-text-run", {
+      hasText: "pay each invoice within 30 days",
+    })
+    .dblclick();
+  await expect
+    .poll(
+      async () =>
+        (await received(page)).find(
+          (m) => m.type === "selection" && m.text !== "",
+        )?.text,
+      { timeout: 30_000 },
+    )
+    .toBeTruthy();
+
+  // Replacing the selection: a tracked deletion and insertion.
+  await send(page, {
+    type: "insertText",
+    requestId: "i1",
+    text: "FP-REPLACED",
+    replaceSelection: true,
+  });
+  expect((await waitFor(page, "inserted")).requestId).toBe("i1");
+  // Inserting at the cursor, after the replaced word: a tracked insertion.
+  await send(page, {
+    type: "insertText",
+    requestId: "i2",
+    text: " FP-INSERTED",
+    replaceSelection: false,
+  });
+  await expect
+    .poll(async () =>
+      (await received(page)).some(
+        (m) => m.type === "inserted" && m.requestId === "i2",
+      ),
+    )
+    .toBe(true);
+  const xml = await savedXml(page);
+  expect(xml).toMatch(
+    /<w:ins\b[^>]*w:author="Test Person"[^>]*>(?:(?!<\/w:ins>).)*FP-REPLACED/s,
+  );
+  expect(xml).toMatch(/<w:del\b[^>]*w:author="Test Person"/);
+  expect(xml).toMatch(
+    /<w:ins\b[^>]*w:author="Test Person"[^>]*>(?:(?!<\/w:ins>).)*FP-INSERTED/s,
+  );
+  expect(errors).toEqual([]);
+});
+
+test("refuses to put text in a read-only document", async ({ page }) => {
+  await page.goto("http://localhost:5181/");
+  await waitFor(page, "ready");
+  await openSample(page, "viewing");
+  await waitFor(page, "loaded");
+  await send(page, {
+    type: "insertText",
+    requestId: "i1",
+    text: "SHOULD-NOT-APPEAR",
+    replaceSelection: false,
+  });
+  const error = await waitFor(page, "error");
+  expect(error).toMatchObject({ code: "insert_failed", requestId: "i1" });
+});

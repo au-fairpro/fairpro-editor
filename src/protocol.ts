@@ -20,6 +20,12 @@ export type DocumentMode = (typeof DOCUMENT_MODES)[number];
 /** Largest document the editor accepts, matching FairPro's upload limit. */
 export const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024;
 
+/** Selected text longer than this is cut when reported to FairPro. */
+export const MAX_SELECTION_CHARS = 4000;
+
+/** Longest text FairPro may ask the editor to insert. */
+export const MAX_INSERT_CHARS = 20_000;
+
 export interface EditorUser {
   name: string;
   email: string;
@@ -38,7 +44,18 @@ export type ParentMessage =
   | { type: "save"; requestId: string }
   | { type: "setMode"; mode: DocumentMode }
   /** Another person now holds the edit lock, or it expired: stop editing. */
-  | { type: "lockLost"; message: string };
+  | { type: "lockLost"; message: string }
+  /**
+   * Put text into the document where the person's cursor is, or in place of
+   * the text they selected. In suggesting mode it arrives as a tracked change
+   * under the person's name, like their own typing.
+   */
+  | {
+      type: "insertText";
+      requestId: string;
+      text: string;
+      replaceSelection: boolean;
+    };
 
 /** Messages the editor sends to FairPro. */
 export type EditorMessage =
@@ -48,6 +65,12 @@ export type EditorMessage =
   /** The person is working; FairPro uses this to keep the edit lock alive. */
   | { type: "activity" }
   | { type: "saved"; requestId: string; fileName: string; bytes: ArrayBuffer }
+  /**
+   * The text the person has selected, or "" when nothing is, so FairPro can
+   * offer to work on it. Sent when it changes.
+   */
+  | { type: "selection"; text: string; truncated: boolean }
+  | { type: "inserted"; requestId: string }
   | {
       type: "error";
       code: EditorErrorCode;
@@ -56,7 +79,7 @@ export type EditorMessage =
     };
 
 export type EditorErrorCode =
-  "open_failed" | "save_failed" | "not_open" | "bad_message";
+  "open_failed" | "save_failed" | "insert_failed" | "not_open" | "bad_message";
 
 export type Envelope<T> = T & { source: string; v: number };
 
@@ -156,6 +179,27 @@ export function parseParentMessage(data: unknown): ParseResult {
           message: isText(data.message, 500)
             ? data.message
             : "Someone else is editing this document.",
+        },
+      };
+    case "insertText":
+      if (!isText(data.requestId, 100))
+        return { ok: false, reason: "insertText needs a requestId" };
+      if (!isText(data.text, MAX_INSERT_CHARS)) {
+        return {
+          ok: false,
+          reason: `text must be 1 to ${String(MAX_INSERT_CHARS)} characters`,
+        };
+      }
+      if (typeof data.replaceSelection !== "boolean") {
+        return { ok: false, reason: "replaceSelection must be true or false" };
+      }
+      return {
+        ok: true,
+        message: {
+          type: "insertText",
+          requestId: data.requestId,
+          text: data.text,
+          replaceSelection: data.replaceSelection,
         },
       };
     default:
