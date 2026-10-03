@@ -1,5 +1,6 @@
 // A stand-in for FairPro in the end-to-end tests: a page on another origin
-// that frames the editor and drives it through postMessage.
+// that frames the editor and drives it through postMessage, with the same
+// sandbox and permissions FairPro's frame uses.
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 
@@ -7,7 +8,9 @@ const page = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Host</title></head>
 <body>
-<iframe id="editor" title="Editor" src="http://localhost:5180/" style="width:1200px;height:900px"></iframe>
+<iframe id="editor" title="Editor" src="http://localhost:5180/" style="width:1200px;height:900px"
+  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads"
+  allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
 <script>
   window.received = [];
   window.addEventListener('message', (event) => {
