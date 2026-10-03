@@ -212,7 +212,7 @@ test("reports the selection, and puts FairPro's text in as tracked changes", asy
   await send(page, {
     type: "insertText",
     requestId: "i1",
-    text: "FP-REPLACED",
+    text: "FP-REPLACED\n\nFP-REPLACED-TWO",
     replaceSelection: true,
   });
   expect((await waitFor(page, "inserted")).requestId).toBe("i1");
@@ -230,7 +230,47 @@ test("reports the selection, and puts FairPro's text in as tracked changes", asy
       ),
     )
     .toBe(true);
+  // Wording of several paragraphs, as the AI suggests it, with a tab and
+  // characters Markdown would otherwise read as formatting.
+  await send(page, {
+    type: "insertText",
+    requestId: "i3",
+    text: "FP-PARA-ONE *not bold*\tend.\n\n2. FP-PARA-TWO\r\n# FP-PARA-THREE",
+    replaceSelection: false,
+  });
+  await expect
+    .poll(async () =>
+      (await received(page)).find(
+        (m) =>
+          (m.type === "inserted" || m.type === "error") && m.requestId === "i3",
+      ),
+    )
+    .toMatchObject({ type: "inserted" });
   const xml = await savedXml(page);
+  for (const marker of [
+    "FP-REPLACED-TWO",
+    "FP-PARA-ONE",
+    "FP-PARA-TWO",
+    "FP-PARA-THREE",
+  ]) {
+    expect(xml).toMatch(
+      new RegExp(
+        `<w:ins\\b[^>]*w:author="Test Person"[^>]*>(?:(?!</w:ins>).)*${marker}`,
+        "s",
+      ),
+    );
+  }
+  // Each paragraph is its own paragraph, and the text is kept as written.
+  const paragraphs = xml.split("</w:p>");
+  const holding = (marker: string) =>
+    paragraphs.findIndex((p) => p.includes(marker));
+  expect(
+    new Set(["FP-PARA-ONE", "FP-PARA-TWO", "FP-PARA-THREE"].map(holding)).size,
+  ).toBe(3);
+  const text = xml.replace(/<[^>]+>/g, "");
+  expect(text).toContain("*not bold*");
+  expect(text).toContain("2. FP-PARA-TWO");
+  expect(text).toContain("# FP-PARA-THREE");
   expect(xml).toMatch(
     /<w:ins\b[^>]*w:author="Test Person"[^>]*>(?:(?!<\/w:ins>).)*FP-REPLACED/s,
   );
