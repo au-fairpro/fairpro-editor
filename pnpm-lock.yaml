@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       superdoc:
         specifier: 2.20.0
         version: 2.20.0(@hocuspocus/provider@2.15.3(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))(typescript@6.0.3)(yjs@13.6.33)
@@ -185,9 +188,6 @@ importers:
       eslint:
         specifier: 10.12.0
         version: 10.12.0
-      fflate:
-        specifier: 0.8.3
-        version: 0.8.3
       globals:
         specifier: 17.13.0
         version: 17.13.0
