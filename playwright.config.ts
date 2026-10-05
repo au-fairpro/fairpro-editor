@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "e2e",
+  // Unit tests (*.test.ts) beside them run in Vitest.
+  testMatch: "**/*.spec.ts",
   timeout: 120_000,
   retries: 0,
   reporter: process.env.CI ? "github" : "list",

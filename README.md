@@ -91,10 +91,33 @@ pnpm install
 pnpm dev          # http://localhost:5180, for FairPro's dev server to frame
 pnpm check        # format, lint, typecheck, unit tests
 pnpm test:e2e     # builds, then drives the editor from a stand-in host page
+                  # (with soffice and pdftotext installed, also the PDF layout check)
 ```
 
 In a Claude Code cloud session, run the browser tests with
 `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
+## Word round trip (NFR-FID-01)
+
+`e2e/round-trip.spec.ts` opens each contract in a synthetic reference set
+(`e2e/reference-set.ts`) the way FairPro does, in suggesting mode, types an
+edit, saves, and reads the file back. Between them the six files hold
+three-level clause numbering, a table with merged cells, first-page and
+default headers with a "Page X of Y" footer, a landscape schedule in its
+own section, bookmarks with REF cross-references, and another party's
+tracked changes and comment. The test fails if anything a reader sees or
+relies on changed apart from the edit (`e2e/fidelity.ts` says what is
+compared: text, styles, numbering, alignment, bold, tables, sections,
+headers and footers, field codes, bookmarks, tracked changes and comments).
+A further test writes a comment in the editor and checks it is saved into
+the Word file beside the other party's.
+
+When LibreOffice Writer and poppler are installed (CI installs them), each
+file is also laid out as PDF before and after: the same number of pages,
+with the same words on each page. That stands in for reopening the file in
+Microsoft Word, which is still checked by hand before go-live. To check a
+real contract, add a synthetic copy of its features to the reference set;
+never commit a customer's document.
 
 ## Deploy (Vercel)
 
