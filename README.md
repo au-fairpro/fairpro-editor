@@ -119,6 +119,18 @@ Microsoft Word, which is still checked by hand before go-live. To check a
 real contract, add a synthetic copy of its features to the reference set;
 never commit a customer's document.
 
+## Opening time (NFR-PERF-04)
+
+`e2e/open-time.spec.ts` checks that a 30-page contract opens within 3
+seconds (`OPEN_BUDGET_MS`). The contract is synthetic (`e2e/long-contract.ts`:
+24 numbered clauses with subclauses and two tables, built from the reference
+set's Word XML). The clock runs in the host page from posting `open` to the
+editor's `loaded`. To keep a busy CI runner from failing it, the editor opens
+the contract once to warm up, then three times in a freshly loaded editor,
+and the fastest of the three must be within the budget (`e2e/timing.ts`).
+Every time is written to the test's annotations and the console, and the
+test also checks that at least 25 pages were laid out.
+
 ## Deploy (Vercel)
 
 A Vercel project in the "fairpro" team, linked to this repository, with

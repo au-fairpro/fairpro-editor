@@ -45,12 +45,12 @@ function escape(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function run(text: string, props = ""): string {
+export function run(text: string, props = ""): string {
   const rPr = props ? `<w:rPr>${props}</w:rPr>` : "";
   return `<w:r>${rPr}<w:t xml:space="preserve">${escape(text)}</w:t></w:r>`;
 }
 
-function para(
+export function para(
   content: string,
   {
     style,
@@ -68,7 +68,7 @@ function para(
   return `<w:p>${props ? `<w:pPr>${props}</w:pPr>` : ""}${content}</w:p>`;
 }
 
-const text = (value: string, options?: Parameters<typeof para>[1]) =>
+export const text = (value: string, options?: Parameters<typeof para>[1]) =>
   para(run(value), options);
 
 const STYLES = `${XML}<w:styles xmlns:w="${W}">
@@ -106,10 +106,10 @@ interface Parts {
   comments?: string;
 }
 
-const LETTER_SECTION =
+export const LETTER_SECTION =
   '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>';
 
-function pack({
+export function pack({
   body,
   section,
   numbering,
