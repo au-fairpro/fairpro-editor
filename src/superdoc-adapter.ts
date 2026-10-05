@@ -14,11 +14,16 @@
 //   with `changeMode: "tracked"`. The Document API ignores the suggesting
 //   mode, so without that option an insertion would be a silent change.
 //   `activeEditor.commands` is null in SuperDoc 2 and is not used.
+// - @mentions in comments: SuperDoc's `users` option lists who its comment
+//   box offers after @, and each comment in `onCommentsUpdate` carries a
+//   `mentions` list of { name, email }. FairPro sends the list and is told
+//   who was mentioned; it decides who may be and tells them.
 
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 import type { DocumentMode, EditorUser } from "./protocol";
-import type { EditorAdapter } from "./bridge";
+import type { CommentMentions, EditorAdapter } from "./bridge";
+import { commentMentions } from "./mentions";
 import { asMarkdownParagraphs, cleanText, failure } from "./text";
 
 export interface SuperDocAdapterOptions {
@@ -56,11 +61,15 @@ export class SuperDocAdapter implements EditorAdapter {
       mode,
       onChange,
       onSelection,
+      people,
+      onComment,
     }: {
       user: EditorUser;
       mode: DocumentMode;
       onChange: () => void;
       onSelection: (text: string) => void;
+      people: EditorUser[];
+      onComment: (comment: CommentMentions) => void;
     },
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -77,6 +86,10 @@ export class SuperDocAdapter implements EditorAdapter {
         document: file,
         documentMode: mode,
         user: { name: user.name, email: user.email },
+        users: people.map((person) => ({
+          name: person.name,
+          email: person.email,
+        })),
         telemetry: { enabled: false },
         onReady: () => {
           settled = true;
@@ -92,8 +105,10 @@ export class SuperDocAdapter implements EditorAdapter {
         onEditorUpdate: () => {
           onChange();
         },
-        onCommentsUpdate: () => {
+        onCommentsUpdate: (update) => {
           onChange();
+          const mentioned = commentMentions(update);
+          if (mentioned) onComment(mentioned);
         },
       });
     });

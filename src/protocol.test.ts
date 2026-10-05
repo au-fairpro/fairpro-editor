@@ -3,6 +3,7 @@ import {
   envelope,
   MAX_DOCUMENT_BYTES,
   MAX_INSERT_CHARS,
+  MAX_PEOPLE,
   parseParentMessage,
 } from "./protocol";
 
@@ -32,8 +33,20 @@ describe("parseParentMessage", () => {
       bytes: expect.any(ArrayBuffer) as ArrayBuffer,
       user,
       mode: "suggesting",
+      people: [],
     });
     expect(Object.keys(result.message)).not.toContain("extra");
+  });
+
+  it("keeps the people who may be @mentioned, and only their name and email", () => {
+    const result = parseParentMessage(
+      open({
+        people: [{ name: "Kamala", email: "kamala@example.com", id: "x" }],
+      }),
+    );
+    expect(
+      result.ok && result.message.type === "open" && result.message.people,
+    ).toEqual([{ name: "Kamala", email: "kamala@example.com" }]);
   });
 
   it.each([
@@ -65,6 +78,17 @@ describe("parseParentMessage", () => {
     ["a user without an email", { user: { name: "Test" } }],
     ["no user", { user: undefined }],
     ["an unknown mode", { mode: "owner" }],
+    ["people that is not a list", { people: "everyone" }],
+    ["a person without an email", { people: [{ name: "Kamala" }] }],
+    [
+      "too many people",
+      {
+        people: Array.from({ length: MAX_PEOPLE + 1 }, (_, i) => ({
+          name: `P${String(i)}`,
+          email: `p${String(i)}@example.com`,
+        })),
+      },
+    ],
   ])("refuses an open with %s", (_, overrides) => {
     expect(parseParentMessage(open(overrides)).ok).toBe(false);
   });

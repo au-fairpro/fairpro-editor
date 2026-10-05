@@ -25,23 +25,31 @@ async function waitFor(page: Page, type: string): Promise<Received> {
   return found;
 }
 
-async function openSample(page: Page, mode = "suggesting") {
-  await page.evaluate(async (mode) => {
-    const bytes = await (await fetch("/sample.docx")).arrayBuffer();
-    const w = window as unknown as {
-      sendToEditor: (m: object, t?: Transferable[]) => void;
-    };
-    w.sendToEditor(
-      {
-        type: "open",
-        fileName: "Sample MSA.docx",
-        bytes,
-        user: { name: "Test Person", email: "test@example.com" },
-        mode,
-      },
-      [bytes],
-    );
-  }, mode);
+async function openSample(
+  page: Page,
+  mode = "suggesting",
+  people: { name: string; email: string }[] = [],
+) {
+  await page.evaluate(
+    async ({ mode, people }) => {
+      const bytes = await (await fetch("/sample.docx")).arrayBuffer();
+      const w = window as unknown as {
+        sendToEditor: (m: object, t?: Transferable[]) => void;
+      };
+      w.sendToEditor(
+        {
+          type: "open",
+          fileName: "Sample MSA.docx",
+          bytes,
+          user: { name: "Test Person", email: "test@example.com" },
+          mode,
+          people,
+        },
+        [bytes],
+      );
+    },
+    { mode, people },
+  );
 }
 
 function watchSecurityErrors(page: Page): string[] {
@@ -294,4 +302,38 @@ test("refuses to put text in a read-only document", async ({ page }) => {
   });
   const error = await waitFor(page, "error");
   expect(error).toMatchObject({ code: "insert_failed", requestId: "i1" });
+});
+
+test("offers FairPro's people after @ in a comment and reports who was mentioned", async ({
+  page,
+}) => {
+  const errors = watchSecurityErrors(page);
+  await page.goto("http://localhost:5181/");
+  await waitFor(page, "ready");
+  await openSample(page, "suggesting", [
+    { name: "Kamala Fernando", email: "kamala@example.com" },
+    { name: "Nimal Perera", email: "nimal@example.com" },
+  ]);
+  await waitFor(page, "loaded");
+  const editor = page.frameLocator("#editor");
+  await editor
+    .locator(".superdoc-text-run", {
+      hasText: "pay each invoice within 30 days",
+    })
+    .dblclick();
+  // SuperDoc's add-comment button beside the selection.
+  await editor.locator(".superdoc__tools .tools-item").first().click();
+  const box = editor.locator("textarea[data-sd-comment-mention-input]");
+  await expect(box).toBeFocused();
+  await page.keyboard.type("Please check @Ka");
+  // Only the people FairPro sent are offered.
+  await expect(editor.getByText("kamala@example.com")).toBeVisible();
+  await expect(editor.getByText("nimal@example.com")).toHaveCount(0);
+  await editor.getByText("kamala@example.com").click();
+  await expect(box).toHaveValue(/@Kamala Fernando/);
+  await editor.getByRole("button", { name: "Comment", exact: true }).click();
+
+  const mentioned = await waitFor(page, "mentioned");
+  expect(mentioned.emails).toEqual(["kamala@example.com"]);
+  expect(errors).toEqual([]);
 });
