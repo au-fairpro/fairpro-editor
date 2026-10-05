@@ -38,6 +38,6 @@ export default defineConfig({
   server: { port: 5180, strictPort: true },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "e2e/**/*.test.ts"],
   },
 });

@@ -28,6 +28,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm exec playwright install --with-deps chromium
+      # The Word round trip (e2e/round-trip.spec.ts) also lays each file out
+      # as PDF before and after, as a stand-in for reopening it in Word.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils
       - run: pnpm test:e2e
         env:
           CI: "true"
