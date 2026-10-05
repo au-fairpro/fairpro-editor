@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVITY_INTERVAL_MS,
   Bridge,
+  type CommentMentions,
   type EditorAdapter,
   type HostWindow,
 } from "./bridge";
@@ -11,7 +12,13 @@ const PARENT = "https://demo.fairpro.com.au";
 const user = { name: "Test Person", email: "test@example.com" };
 
 class FakeAdapter implements EditorAdapter {
-  opened: { file: File; mode: DocumentMode; user: EditorUser }[] = [];
+  opened: {
+    file: File;
+    mode: DocumentMode;
+    user: EditorUser;
+    people: EditorUser[];
+  }[] = [];
+  onComment: (comment: CommentMentions) => void = () => undefined;
   modes: DocumentMode[] = [];
   closed = 0;
   failOpen: Error | null = null;
@@ -28,11 +35,19 @@ class FakeAdapter implements EditorAdapter {
       mode: DocumentMode;
       onChange: () => void;
       onSelection: (text: string) => void;
+      people: EditorUser[];
+      onComment: (comment: CommentMentions) => void;
     },
   ) {
     if (this.failOpen) return Promise.reject(this.failOpen);
-    this.opened.push({ file, mode: options.mode, user: options.user });
+    this.opened.push({
+      file,
+      mode: options.mode,
+      user: options.user,
+      people: options.people,
+    });
     this.onChange = options.onChange;
+    this.onComment = options.onComment;
     this.onSelection = options.onSelection;
     return Promise.resolve();
   }
@@ -89,7 +104,12 @@ function setup(now = () => 0) {
   return { bridge, adapter, ui, sent, deliver, types, parent };
 }
 
-const openMessage = (mode = "suggesting") => ({
+const people = [
+  { name: "Kamala Fernando", email: "Kamala@example.com" },
+  { name: "Nimal Perera", email: "nimal@example.com" },
+  user,
+];
+const openMessage = (mode = "suggesting", withPeople: EditorUser[] = []) => ({
   source: "fairpro",
   v: 1,
   type: "open",
@@ -97,6 +117,7 @@ const openMessage = (mode = "suggesting") => ({
   bytes: new ArrayBuffer(4),
   user,
   mode,
+  people: withPeople,
 });
 const insert = (text: string, replaceSelection = false, requestId = "i1") => ({
   source: "fairpro",
@@ -350,5 +371,51 @@ describe("Bridge", () => {
       requestId: "i4",
     });
     expect(t.adapter.inserted).toEqual([]);
+  });
+
+  it("offers FairPro's people to @mention and reports each new mention once", async () => {
+    await t.deliver(openMessage("suggesting", people));
+    expect(t.adapter.opened[0]?.people).toEqual(people);
+    const mentioned = () =>
+      t.sent
+        .filter((s) => s.message.type === "mentioned")
+        .map((s) => s.message.emails);
+    t.adapter.onComment({
+      commentId: "c1",
+      emails: ["kamala@example.com", "KAMALA@example.com"],
+    });
+    // Edited later to add Nimal: only Nimal is new.
+    t.adapter.onComment({
+      commentId: "c1",
+      emails: ["kamala@example.com", "nimal@example.com"],
+    });
+    // Not offered by FairPro, or the person writing: never reported.
+    t.adapter.onComment({
+      commentId: "c2",
+      emails: ["stranger@example.com", user.email],
+    });
+    // A comment without mentions says nothing.
+    t.adapter.onComment({ commentId: "c3", emails: [] });
+    expect(mentioned()).toEqual([
+      ["kamala@example.com"],
+      ["nimal@example.com"],
+    ]);
+  });
+
+  it("reports at most 20 people in one message, and forgets mentions when another document opens", async () => {
+    const many = Array.from({ length: 25 }, (_, i) => ({
+      name: `P${String(i)}`,
+      email: `p${String(i)}@example.com`,
+    }));
+    await t.deliver(openMessage("suggesting", many));
+    t.adapter.onComment({ commentId: "c1", emails: many.map((p) => p.email) });
+    const sizes = () =>
+      t.sent
+        .filter((s) => s.message.type === "mentioned")
+        .map((s) => (s.message.emails as string[]).length);
+    expect(sizes()).toEqual([20, 5]);
+    await t.deliver(openMessage("suggesting", many));
+    t.adapter.onComment({ commentId: "c1", emails: ["p0@example.com"] });
+    expect(sizes()).toEqual([20, 5, 1]);
   });
 });

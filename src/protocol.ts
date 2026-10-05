@@ -26,6 +26,12 @@ export const MAX_SELECTION_CHARS = 4000;
 /** Longest text FairPro may ask the editor to insert. */
 export const MAX_INSERT_CHARS = 20_000;
 
+/** Most people FairPro may offer to @mention in a document's comments. */
+export const MAX_PEOPLE = 500;
+
+/** Most people reported in one "mentioned" message. */
+export const MAX_MENTIONED = 20;
+
 export interface EditorUser {
   name: string;
   email: string;
@@ -40,6 +46,11 @@ export type ParentMessage =
       bytes: ArrayBuffer;
       user: EditorUser;
       mode: DocumentMode;
+      /**
+       * Who may be @mentioned in the document's comments. FairPro decides;
+       * the editor only offers these names. Empty when nobody may be.
+       */
+      people: EditorUser[];
     }
   | { type: "save"; requestId: string }
   | { type: "setMode"; mode: DocumentMode }
@@ -71,6 +82,11 @@ export type EditorMessage =
    */
   | { type: "selection"; text: string; truncated: boolean }
   | { type: "inserted"; requestId: string }
+  /**
+   * People newly @mentioned in a comment, by email, so FairPro can tell
+   * them. Each person once per comment; FairPro checks them again.
+   */
+  | { type: "mentioned"; emails: string[] }
   | {
       type: "error";
       code: EditorErrorCode;
@@ -103,6 +119,27 @@ export function isDocumentMode(value: unknown): value is DocumentMode {
     typeof value === "string" &&
     (DOCUMENT_MODES as readonly string[]).includes(value)
   );
+}
+
+/**
+ * The people FairPro offers to @mention, or null when the list is wrong.
+ * An older FairPro sends none: nobody is offered.
+ */
+function parsePeople(value: unknown): EditorUser[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_PEOPLE) return null;
+  const people: EditorUser[] = [];
+  for (const person of value) {
+    if (
+      !isRecord(person) ||
+      !isText(person.name, 200) ||
+      !isText(person.email, 320)
+    ) {
+      return null;
+    }
+    people.push({ name: person.name, email: person.email });
+  }
+  return people;
 }
 
 /**
@@ -148,6 +185,13 @@ export function parseParentMessage(data: unknown): ParseResult {
           reason: "mode must be editing, suggesting or viewing",
         };
       }
+      const people = parsePeople(data.people);
+      if (people === null) {
+        return {
+          ok: false,
+          reason: `people must be at most ${String(MAX_PEOPLE)} people with a name and an email`,
+        };
+      }
       return {
         ok: true,
         message: {
@@ -156,6 +200,7 @@ export function parseParentMessage(data: unknown): ParseResult {
           bytes: data.bytes,
           user: { name: user.name, email: user.email },
           mode: data.mode,
+          people,
         },
       };
     }

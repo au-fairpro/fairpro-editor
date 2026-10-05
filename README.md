@@ -40,27 +40,30 @@ it, and hands the bytes back when FairPro asks.
 Every message carries `source` (`"fairpro"` from FairPro, `"fairpro-editor"`
 from the editor) and `v: 1`. `selection`, `insertText` and `inserted` were
 added to version 1 on 3 October 2026; an older FairPro never sends or reads
-them, so the version did not change. The shapes are in
+them, so the version did not change. `open`'s `people` and the
+`mentioned` message were added on 5 October 2026 the same way: without
+`people` nobody is offered after @ in a comment. The shapes are in
 [`src/protocol.ts`](src/protocol.ts).
 
-| From FairPro | Fields                                     |
-| ------------ | ------------------------------------------ |
-| `open`       | `fileName`, `bytes`, `user`, `mode`        |
-| `save`       | `requestId`                                |
-| `setMode`    | `mode`: `editing`, `suggesting`, `viewing` |
-| `lockLost`   | `message`                                  |
-| `insertText` | `requestId`, `text`, `replaceSelection`    |
+| From FairPro | Fields                                        |
+| ------------ | --------------------------------------------- |
+| `open`       | `fileName`, `bytes`, `user`, `mode`, `people` |
+| `save`       | `requestId`                                   |
+| `setMode`    | `mode`: `editing`, `suggesting`, `viewing`    |
+| `lockLost`   | `message`                                     |
+| `insertText` | `requestId`, `text`, `replaceSelection`       |
 
-| From the editor | Fields                                         |
-| --------------- | ---------------------------------------------- |
-| `ready`         |                                                |
-| `loaded`        | `fileName`                                     |
-| `dirty`         | `dirty`                                        |
-| `activity`      |                                                |
-| `saved`         | `requestId`, `fileName`, `bytes`               |
-| `selection`     | `text` (at most 4,000 characters), `truncated` |
-| `inserted`      | `requestId`                                    |
-| `error`         | `code`, `message`, `requestId` when it has one |
+| From the editor | Fields                                              |
+| --------------- | --------------------------------------------------- |
+| `ready`         |                                                     |
+| `loaded`        | `fileName`                                          |
+| `dirty`         | `dirty`                                             |
+| `activity`      |                                                     |
+| `saved`         | `requestId`, `fileName`, `bytes`                    |
+| `selection`     | `text` (at most 4,000 characters), `truncated`      |
+| `inserted`      | `requestId`                                         |
+| `mentioned`     | `emails` (at most 20) newly @mentioned in a comment |
+| `error`         | `code`, `message`, `requestId` when it has one      |
 
 ### Security
 
@@ -71,6 +74,11 @@ them, so the version did not change. The shapes are in
 - FairPro sends the document's bytes, so the editor needs no network access
   and holds no credentials. Its Content-Security-Policy (`vercel.json`) only
   allows its own files, and only `*.fairpro.com.au` may frame it.
+- Comments: after @, SuperDoc offers only the `people` FairPro sent (its
+  `users` option). The editor reports each newly mentioned person once per
+  comment, only if FairPro offered them and never the person writing;
+  FairPro checks them again and sends the notices. The comment's text is
+  not sent; it stays in the document.
 - SuperDoc's telemetry is switched off. The browser tests fail if the page
   requests anything from another host.
 

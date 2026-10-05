@@ -4,6 +4,7 @@
 
 import {
   envelope,
+  MAX_MENTIONED,
   MAX_SELECTION_CHARS,
   parseParentMessage,
   type DocumentMode,
@@ -28,6 +29,10 @@ export interface EditorAdapter {
       onChange: () => void;
       /** The selected text, or "" when nothing is selected. */
       onSelection: (text: string) => void;
+      /** Who may be @mentioned in comments. */
+      people: EditorUser[];
+      /** A comment was added or changed, with the emails it mentions. */
+      onComment: (comment: CommentMentions) => void;
     },
   ): Promise<void>;
   exportDocx(): Promise<Blob>;
@@ -38,6 +43,12 @@ export interface EditorAdapter {
     options: { replaceSelection: boolean },
   ): Promise<void>;
   close(): void;
+}
+
+export interface CommentMentions {
+  commentId: string;
+  /** Emails of the people the comment mentions. */
+  emails: string[];
 }
 
 export interface EditorUi {
@@ -89,6 +100,10 @@ export class Bridge {
   private fileName = "";
   private dirty = false;
   private lastActivity = Number.NEGATIVE_INFINITY;
+  /** Emails of the people FairPro offered, lower case, without the person. */
+  private mentionable = new Set<string>();
+  /** Who each comment's mentions were already reported for. */
+  private reported = new Map<string, Set<string>>();
   /** Opens and saves run one at a time, in the order they arrived. */
   private queue: Promise<void> = Promise.resolve();
   private readonly listener = (event: MessageEvent): void => {
@@ -233,6 +248,13 @@ export class Bridge {
     }
     this.dirty = false;
     this.selection = "";
+    this.reported = new Map();
+    const me = message.user.email.toLowerCase();
+    this.mentionable = new Set(
+      message.people
+        .map((person) => person.email.toLowerCase())
+        .filter((email) => email !== me),
+    );
     this.ui.banner(null);
     this.ui.status(`Opening ${message.fileName}.`);
     const file = new File([message.bytes], message.fileName, {
@@ -247,6 +269,10 @@ export class Bridge {
         },
         onSelection: (text) => {
           this.selected(text);
+        },
+        people: message.people,
+        onComment: (comment) => {
+          this.commented(comment);
         },
       });
     } catch (error) {
@@ -304,6 +330,26 @@ export class Bridge {
       text: text.slice(0, MAX_SELECTION_CHARS),
       truncated: text.length > MAX_SELECTION_CHARS,
     });
+  }
+
+  /**
+   * Reports people newly mentioned in a comment: only people FairPro
+   * offered, never the person writing, each once per comment.
+   */
+  private commented({ commentId, emails }: CommentMentions): void {
+    const reported = this.reported.get(commentId) ?? new Set<string>();
+    const fresh = [
+      ...new Set(emails.map((email) => email.toLowerCase())),
+    ].filter((email) => this.mentionable.has(email) && !reported.has(email));
+    if (fresh.length === 0) return;
+    for (const email of fresh) reported.add(email);
+    this.reported.set(commentId, reported);
+    for (let start = 0; start < fresh.length; start += MAX_MENTIONED) {
+      this.send({
+        type: "mentioned",
+        emails: fresh.slice(start, start + MAX_MENTIONED),
+      });
+    }
   }
 
   private changed(): void {
