@@ -27,11 +27,13 @@ const parse = (xml: string) =>
 const MARKER = "FP-EDIT";
 const PERSON = { name: "Test Person", email: "test@example.com" };
 
+const COLLEAGUE = { name: "Kamala Fernando", email: "kamala@example.com" };
+
 async function open(page: Page, fileName: string, bytes: Uint8Array) {
   await page.goto("http://localhost:5181/");
   await waitFor(page, "ready");
   await page.evaluate(
-    ({ fileName, data, user }) => {
+    ({ fileName, data, user, colleague }) => {
       const buffer = new Uint8Array(data).buffer;
       (
         window as unknown as {
@@ -44,12 +46,12 @@ async function open(page: Page, fileName: string, bytes: Uint8Array) {
           bytes: buffer,
           user,
           mode: "suggesting",
-          people: [],
+          people: [colleague],
         },
         [buffer],
       );
     },
-    { fileName, data: Array.from(bytes), user: PERSON },
+    { fileName, data: Array.from(bytes), user: PERSON, colleague: COLLEAGUE },
   );
   await waitFor(page, "loaded");
 }
@@ -177,5 +179,46 @@ test("saves a comment written in the editor, beside the other side's", async ({
   expect(mine?.anchor).not.toBe("");
   // The other side's tracked changes are still there, still theirs.
   expect(print.tracked).toEqual(fingerprint(document.bytes, parse).tracked);
+  expect(errors).toEqual([]);
+});
+
+test("takes a reply, with a mention, to a comment written by another program", async ({
+  page,
+}) => {
+  // The other side's comment has no paragraph id, like FairPro's AI
+  // comments before 5 October 2026; SuperDoc's Reply did nothing on it.
+  const errors = watchSecurityErrors(page);
+  const document = referenceSet().find(
+    (d) => d.name === "counterparty-changes",
+  );
+  if (!document) throw new Error("no counterparty-changes document");
+  await open(page, "reply.docx", document.bytes);
+
+  const editor = page.frameLocator("#editor");
+  const card = editor.locator(".comments-dialog", {
+    hasText: "We need 90 days' notice here.",
+  });
+  await card.click();
+  await card.getByRole("button", { name: /^Reply or add others/ }).click();
+  const box = card.locator("textarea[data-sd-comment-mention-input]");
+  await box.click();
+  await page.keyboard.type("60 days? @Ka");
+  await editor.getByText(COLLEAGUE.email).click();
+  await expect(box).toHaveValue(/@Kamala Fernando/);
+  await card.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(card).toContainText("60 days?");
+  // FairPro is told who the reply mentions, as for a new comment.
+  const mentioned = await waitFor(page, "mentioned");
+  expect(mentioned.emails).toEqual([COLLEAGUE.email]);
+
+  const print = fingerprint(await save(page), parse);
+  expect(print.comments).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        author: PERSON.name,
+        text: expect.stringContaining("60 days?"),
+      }),
+    ]),
+  );
   expect(errors).toEqual([]);
 });

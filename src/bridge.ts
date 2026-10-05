@@ -13,6 +13,7 @@ import {
   type ParentMessage,
 } from "./protocol";
 import { isAllowedOrigin } from "./origins";
+import { withCommentParagraphIds } from "./comment-ids";
 
 export const DOCX_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -257,7 +258,9 @@ export class Bridge {
     );
     this.ui.banner(null);
     this.ui.status(`Opening ${message.fileName}.`);
-    const file = new File([message.bytes], message.fileName, {
+    // Comments without a paragraph id cannot take replies in SuperDoc.
+    const bytes = withCommentParagraphIds(new Uint8Array(message.bytes));
+    const file = new File([bytes], message.fileName, {
       type: DOCX_TYPE,
     });
     try {
