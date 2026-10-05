@@ -33,7 +33,12 @@ it, and hands the bytes back when FairPro asks.
    several lines goes in line by line: the first line at the cursor (or in
    place of the selection), the rest as new paragraphs after that
    paragraph, since SuperDoc's plain-text insert refuses line breaks. Tabs
-   become spaces and other control characters are dropped.
+   become spaces and other control characters are dropped. With `via`
+   (such as `"the assistant"`), the tracked change also gets a comment by
+   "[person] via the assistant" saying the text was suggested (FR-AI-032).
+   SuperDoc 2 has no supported way to give one tracked change another
+   author ([superdoc/docx-editor#3998](https://github.com/superdoc/docx-editor/issues/3998)),
+   so the change itself stays under the person's name.
 
 ### Messages
 
@@ -42,16 +47,17 @@ from the editor) and `v: 1`. `selection`, `insertText` and `inserted` were
 added to version 1 on 3 October 2026; an older FairPro never sends or reads
 them, so the version did not change. `open`'s `people` and the
 `mentioned` message were added on 5 October 2026 the same way: without
-`people` nobody is offered after @ in a comment. The shapes are in
+`people` nobody is offered after @ in a comment. `insertText`'s optional
+`via` was added on 5 October 2026 too; an older editor ignores it. The shapes are in
 [`src/protocol.ts`](src/protocol.ts).
 
-| From FairPro | Fields                                        |
-| ------------ | --------------------------------------------- |
-| `open`       | `fileName`, `bytes`, `user`, `mode`, `people` |
-| `save`       | `requestId`                                   |
-| `setMode`    | `mode`: `editing`, `suggesting`, `viewing`    |
-| `lockLost`   | `message`                                     |
-| `insertText` | `requestId`, `text`, `replaceSelection`       |
+| From FairPro | Fields                                          |
+| ------------ | ----------------------------------------------- |
+| `open`       | `fileName`, `bytes`, `user`, `mode`, `people`   |
+| `save`       | `requestId`                                     |
+| `setMode`    | `mode`: `editing`, `suggesting`, `viewing`      |
+| `lockLost`   | `message`                                       |
+| `insertText` | `requestId`, `text`, `replaceSelection`, `via?` |
 
 | From the editor | Fields                                              |
 | --------------- | --------------------------------------------------- |

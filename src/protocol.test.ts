@@ -4,6 +4,7 @@ import {
   MAX_DOCUMENT_BYTES,
   MAX_INSERT_CHARS,
   MAX_PEOPLE,
+  MAX_VIA_CHARS,
   parseParentMessage,
 } from "./protocol";
 
@@ -184,6 +185,24 @@ describe("insertText", () => {
     expect(parseParentMessage(insert({ replaceSelection: "yes" })).ok).toBe(
       false,
     );
+  });
+
+  it("takes who suggested the text, when given (FR-AI-032)", () => {
+    expect(parseParentMessage(insert({ via: "the assistant" }))).toEqual({
+      ok: true,
+      message: {
+        type: "insertText",
+        requestId: "i1",
+        text: "The Supplier shall keep records.",
+        replaceSelection: false,
+        via: "the assistant",
+      },
+    });
+    expect(parseParentMessage(insert({ via: "" })).ok).toBe(false);
+    expect(parseParentMessage(insert({ via: 7 })).ok).toBe(false);
+    expect(
+      parseParentMessage(insert({ via: "x".repeat(MAX_VIA_CHARS + 1) })).ok,
+    ).toBe(false);
   });
 });
 

@@ -125,7 +125,10 @@ test("ignores a page whose origin is not allowed", async ({ page }) => {
   expect(await received(page)).toEqual([]);
 });
 
-async function savedXml(page: Page): Promise<string> {
+async function savedXml(
+  page: Page,
+  part = "word/document.xml",
+): Promise<string> {
   await send(page, { type: "save", requestId: "s1" });
   await waitFor(page, "saved");
   const bytes = await page.evaluate(() => {
@@ -135,9 +138,7 @@ async function savedXml(page: Page): Promise<string> {
     if (!m) throw new Error("no saved message");
     return Array.from(new Uint8Array(m.bytes as ArrayBuffer));
   });
-  return strFromU8(
-    unzipSync(new Uint8Array(bytes))["word/document.xml"] ?? new Uint8Array(),
-  );
+  return strFromU8(unzipSync(new Uint8Array(bytes))[part] ?? new Uint8Array());
 }
 
 test("reports the selection, and puts FairPro's text in as tracked changes", async ({
@@ -235,6 +236,40 @@ test("reports the selection, and puts FairPro's text in as tracked changes", asy
   expect(xml).toMatch(/<w:del\b[^>]*w:author="Test Person"/);
   expect(xml).toMatch(
     /<w:ins\b[^>]*w:author="Test Person"[^>]*>(?:(?!<\/w:ins>).)*FP-INSERTED/s,
+  );
+  expect(errors).toEqual([]);
+});
+
+test("marks text an assistant suggested with a comment from '[person] via the assistant' (FR-AI-032)", async ({
+  page,
+}) => {
+  const errors = watchSecurityErrors(page);
+  await page.goto("http://localhost:5181/");
+  await waitFor(page, "ready");
+  await openSample(page);
+  await waitFor(page, "loaded");
+  await page
+    .frameLocator("#editor")
+    .locator(".superdoc-text-run", {
+      hasText: "pay each invoice within 30 days",
+    })
+    .click();
+  await send(page, {
+    type: "insertText",
+    requestId: "v1",
+    text: " FP-SUGGESTED",
+    replaceSelection: false,
+    via: "the assistant",
+  });
+  expect((await waitFor(page, "inserted")).requestId).toBe("v1");
+  const comments = await savedXml(page, "word/comments.xml");
+  expect(comments).toMatch(
+    /<w:comment\b[^>]*w:author="Test Person via the assistant"[^>]*>(?:(?!<\/w:comment>).)*Suggested by Test Person via the assistant\./s,
+  );
+  // The tracked change itself stays the person's own.
+  const xml = await savedXml(page);
+  expect(xml).toMatch(
+    /<w:ins\b[^>]*w:author="Test Person"[^>]*>(?:(?!<\/w:ins>).)*FP-SUGGESTED/s,
   );
   expect(errors).toEqual([]);
 });

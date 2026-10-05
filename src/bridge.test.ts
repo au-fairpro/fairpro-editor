@@ -5,6 +5,7 @@ import {
   type CommentMentions,
   type EditorAdapter,
   type HostWindow,
+  type SuggestedBy,
 } from "./bridge";
 import type { DocumentMode, EditorUser } from "./protocol";
 
@@ -25,7 +26,11 @@ class FakeAdapter implements EditorAdapter {
   exportResult: Blob | Error = new Blob([new Uint8Array([80, 75, 3, 4])]);
   onChange: () => void = () => undefined;
   onSelection: (text: string) => void = () => undefined;
-  inserted: { text: string; replaceSelection: boolean }[] = [];
+  inserted: {
+    text: string;
+    replaceSelection: boolean;
+    suggestedBy?: SuggestedBy;
+  }[] = [];
   failInsert: Error | null = null;
 
   open(
@@ -51,9 +56,12 @@ class FakeAdapter implements EditorAdapter {
     this.onSelection = options.onSelection;
     return Promise.resolve();
   }
-  insertText(text: string, options: { replaceSelection: boolean }) {
+  insertText(
+    text: string,
+    options: { replaceSelection: boolean; suggestedBy?: SuggestedBy },
+  ) {
     if (this.failInsert) return Promise.reject(this.failInsert);
-    this.inserted.push({ text, replaceSelection: options.replaceSelection });
+    this.inserted.push({ text, ...options });
     return Promise.resolve();
   }
   exportDocx() {
@@ -320,6 +328,28 @@ describe("Bridge", () => {
     expect(t.sent.at(-1)?.message).toMatchObject({
       type: "inserted",
       requestId: "i9",
+    });
+  });
+
+  it("marks text an assistant suggested as '[person] via [it]' (FR-AI-032)", async () => {
+    await t.deliver(openMessage());
+    await t.deliver({
+      ...insert("Clause.", false, "i5"),
+      via: "the assistant",
+    });
+    expect(t.adapter.inserted).toEqual([
+      {
+        text: "Clause.",
+        replaceSelection: false,
+        suggestedBy: {
+          author: "Test Person via the assistant",
+          authorEmail: "test@example.com",
+        },
+      },
+    ]);
+    expect(t.sent.at(-1)?.message).toMatchObject({
+      type: "inserted",
+      requestId: "i5",
     });
   });
 

@@ -14,6 +14,7 @@ import {
 } from "./protocol";
 import { isAllowedOrigin } from "./origins";
 import { withCommentParagraphIds } from "./comment-ids";
+import { viaAuthor } from "./text";
 
 export const DOCX_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -38,12 +39,24 @@ export interface EditorAdapter {
   ): Promise<void>;
   exportDocx(): Promise<Blob>;
   setMode(mode: DocumentMode): void;
-  /** Inserts at the cursor, or in place of the last selection; throws on failure. */
+  /**
+   * Inserts at the cursor, or in place of the last selection; throws on
+   * failure. With `suggestedBy`, the tracked change also gets a comment
+   * from that author saying so (FR-AI-032).
+   */
   insertText(
     text: string,
-    options: { replaceSelection: boolean },
+    options: { replaceSelection: boolean; suggestedBy?: SuggestedBy },
   ): Promise<void>;
   close(): void;
+}
+
+/** Who an insertion was suggested by, as the comment on it names them. */
+export interface SuggestedBy {
+  /** "Ann Lee via the assistant". */
+  author: string;
+  /** The person's own email, so the comment stays theirs. */
+  authorEmail: string;
 }
 
 export interface CommentMentions {
@@ -99,6 +112,8 @@ export class Bridge {
   /** The selection last reported to FairPro, so only changes are sent. */
   private selection = "";
   private fileName = "";
+  /** The person FairPro opened the document for. */
+  private user: EditorUser | null = null;
   private dirty = false;
   private lastActivity = Number.NEGATIVE_INFINITY;
   /** Emails of the people FairPro offered, lower case, without the person. */
@@ -225,8 +240,17 @@ export class Bridge {
       return;
     }
     try {
+      const user = this.user;
       await this.adapter.insertText(message.text, {
         replaceSelection: message.replaceSelection,
+        ...(message.via && user
+          ? {
+              suggestedBy: {
+                author: viaAuthor(user.name, message.via),
+                authorEmail: user.email,
+              },
+            }
+          : {}),
       });
     } catch (error) {
       this.send({
@@ -290,6 +314,7 @@ export class Bridge {
     this.isOpen = true;
     this.mode = message.mode;
     this.fileName = message.fileName;
+    this.user = message.user;
     this.ui.status(`${message.fileName} is open.`);
     this.send({ type: "loaded", fileName: message.fileName });
   }
