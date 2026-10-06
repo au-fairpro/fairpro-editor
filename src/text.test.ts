@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { asMarkdownParagraphs, cleanText, failure } from "./text";
+import {
+  asMarkdownParagraphs,
+  cleanText,
+  failure,
+  trackedChangeIds,
+  viaAuthor,
+} from "./text";
 
 // The AI's wording goes into the document through SuperDoc's Document API,
 // whose plain-text insert refuses control characters, line breaks included
@@ -48,5 +54,35 @@ describe("failure", () => {
     ).toBe("The target moved.");
     expect(failure(false)).toBe("The text could not be put into the document.");
     expect(failure({})).toBe("The text could not be put into the document.");
+  });
+});
+
+describe("trackedChangeIds", () => {
+  it("reads the tracked changes a receipt made", () => {
+    expect(
+      trackedChangeIds({
+        success: true,
+        inserted: [
+          { kind: "entity", entityType: "trackedChange", entityId: "tc-1" },
+          { kind: "entity", entityType: "comment", entityId: "c-1" },
+          { kind: "entity", entityType: "trackedChange", entityId: "" },
+          null,
+        ],
+      }),
+    ).toEqual(["tc-1"]);
+  });
+
+  it("finds none in a receipt without them", () => {
+    expect(trackedChangeIds({ success: true })).toEqual([]);
+    expect(trackedChangeIds(null)).toEqual([]);
+    expect(trackedChangeIds({ inserted: "tc-1" })).toEqual([]);
+  });
+});
+
+describe("viaAuthor", () => {
+  it("names the person, then what suggested it", () => {
+    expect(viaAuthor("Ann Lee", "the assistant")).toBe(
+      "Ann Lee via the assistant",
+    );
   });
 });

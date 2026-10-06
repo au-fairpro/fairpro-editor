@@ -26,6 +26,9 @@ export const MAX_SELECTION_CHARS = 4000;
 /** Longest text FairPro may ask the editor to insert. */
 export const MAX_INSERT_CHARS = 20_000;
 
+/** Longest name FairPro may give for who suggested inserted text. */
+export const MAX_VIA_CHARS = 60;
+
 /** Most people FairPro may offer to @mention in a document's comments. */
 export const MAX_PEOPLE = 500;
 
@@ -66,6 +69,14 @@ export type ParentMessage =
       requestId: string;
       text: string;
       replaceSelection: boolean;
+      /**
+       * Who suggested the text, such as "the assistant", when the person
+       * inserts something an assistant wrote. The editor marks the tracked
+       * change with a comment "[person] via [via]" (FR-AI-032). Optional:
+       * an editor that does not know it ignores it, so the protocol
+       * version stays the same.
+       */
+      via?: string;
     };
 
 /** Messages the editor sends to FairPro. */
@@ -238,6 +249,12 @@ export function parseParentMessage(data: unknown): ParseResult {
       if (typeof data.replaceSelection !== "boolean") {
         return { ok: false, reason: "replaceSelection must be true or false" };
       }
+      if (data.via !== undefined && !isText(data.via, MAX_VIA_CHARS)) {
+        return {
+          ok: false,
+          reason: `via must be 1 to ${String(MAX_VIA_CHARS)} characters`,
+        };
+      }
       return {
         ok: true,
         message: {
@@ -245,6 +262,7 @@ export function parseParentMessage(data: unknown): ParseResult {
           requestId: data.requestId,
           text: data.text,
           replaceSelection: data.replaceSelection,
+          ...(data.via === undefined ? {} : { via: data.via }),
         },
       };
     default:

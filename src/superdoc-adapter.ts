@@ -18,13 +18,24 @@
 //   box offers after @, and each comment in `onCommentsUpdate` carries a
 //   `mentions` list of { name, email }. FairPro sends the list and is told
 //   who was mentioned; it decides who may be and tells them.
+// - "[name] via the assistant" (FR-AI-032): SuperDoc 2 has no supported way
+//   to set a tracked change's author per insertion
+//   (github.com/superdoc/docx-editor/issues/3998), so the change stays
+//   under the person's name and a comment anchored to it, created with the
+//   Document API's `comments.create` (`trackedChangeId`, `author`,
+//   `authorEmail`), says who suggested it.
 
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 import type { DocumentMode, EditorUser } from "./protocol";
-import type { CommentMentions, EditorAdapter } from "./bridge";
+import type { CommentMentions, EditorAdapter, SuggestedBy } from "./bridge";
 import { commentMentions } from "./mentions";
-import { asMarkdownParagraphs, cleanText, failure } from "./text";
+import {
+  asMarkdownParagraphs,
+  cleanText,
+  failure,
+  trackedChangeIds,
+} from "./text";
 
 export interface SuperDocAdapterOptions {
   /** CSS selector of the element the document is drawn in. */
@@ -134,7 +145,10 @@ export class SuperDocAdapter implements EditorAdapter {
 
   async insertText(
     text: string,
-    { replaceSelection }: { replaceSelection: boolean },
+    {
+      replaceSelection,
+      suggestedBy,
+    }: { replaceSelection: boolean; suggestedBy?: SuggestedBy },
   ): Promise<void> {
     const ui = this.superdoc?.ui;
     const doc = this.superdoc?.activeEditor?.doc;
@@ -161,7 +175,11 @@ export class SuperDocAdapter implements EditorAdapter {
       ? await doc.replace({ target, text: first.trim() }, tracked)
       : await doc.insert({ target, value: first.trim() }, tracked);
     if (!succeeded(placed)) throw new Error(failure(placed));
-    if (rest.length === 0) return;
+    const changes = trackedChangeIds(placed);
+    if (rest.length === 0) {
+      await this.markSuggested(changes, suggestedBy);
+      return;
+    }
     // Plain text cannot carry a line break, and Markdown cannot go in the
     // middle of a paragraph, so further lines become new paragraphs after
     // the paragraph the first line went into.
@@ -183,6 +201,35 @@ export class SuperDocAdapter implements EditorAdapter {
       tracked,
     );
     if (!succeeded(after)) throw new Error(failure(after));
+    await this.markSuggested(
+      [...changes, ...trackedChangeIds(after)],
+      suggestedBy,
+    );
+  }
+
+  /**
+   * Comments on the first tracked change an insertion made, as "[name] via
+   * [it]", saying who suggested the text. The text is in by now, so a
+   * comment that cannot be made does not undo or fail the insertion; the
+   * change still carries the person's own name.
+   */
+  private async markSuggested(
+    changes: readonly string[],
+    suggestedBy: SuggestedBy | undefined,
+  ): Promise<void> {
+    const doc = this.superdoc?.activeEditor?.doc;
+    const [trackedChangeId] = changes;
+    if (!suggestedBy || !doc || !trackedChangeId) return;
+    try {
+      await doc.comments.create({
+        trackedChangeId,
+        author: suggestedBy.author,
+        authorEmail: suggestedBy.authorEmail,
+        text: `Suggested by ${suggestedBy.author}.`,
+      });
+    } catch {
+      // Left without the comment; see above.
+    }
   }
 
   setMode(mode: DocumentMode): void {

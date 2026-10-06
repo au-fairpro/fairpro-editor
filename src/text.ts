@@ -71,3 +71,32 @@ export function failure(result: unknown): string {
 
 /** A bare failure code rather than a sentence. */
 const CODE = /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/i;
+
+/**
+ * The ids of the tracked changes a receipt says the operation made, so a
+ * comment can be anchored to them. SuperDoc lists created entities in the
+ * receipt's `inserted`, each a tracked-change address
+ * `{ kind: "entity", entityType: "trackedChange", entityId }`.
+ */
+export function trackedChangeIds(receipt: unknown): string[] {
+  if (typeof receipt !== "object" || receipt === null) return [];
+  const inserted = (receipt as { inserted?: unknown }).inserted;
+  if (!Array.isArray(inserted)) return [];
+  return inserted.flatMap((entity: unknown) => {
+    if (typeof entity !== "object" || entity === null) return [];
+    const { entityType, entityId } = entity as {
+      entityType?: unknown;
+      entityId?: unknown;
+    };
+    return entityType === "trackedChange" &&
+      typeof entityId === "string" &&
+      entityId !== ""
+      ? [entityId]
+      : [];
+  });
+}
+
+/** Who a suggested insertion is from: "Ann Lee via the assistant" (FR-AI-032). */
+export function viaAuthor(name: string, via: string): string {
+  return `${name} via ${via}`;
+}
