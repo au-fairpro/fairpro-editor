@@ -79,7 +79,9 @@ them, so the version did not change. `open`'s `people` and the
   replies to that exact origin, never `*`.
 - FairPro sends the document's bytes, so the editor needs no network access
   and holds no credentials. Its Content-Security-Policy (`vercel.json`) only
-  allows its own files, and only `*.fairpro.com.au` may frame it.
+  allows its own files, and only `*.fairpro.com.au` may frame it. On AWS,
+  CloudFront sends the same headers (fairpro-infra,
+  `terraform/live/production/editor`); change both together.
 - Comments: after @, SuperDoc offers only the `people` FairPro sent (its
   `users` option). The editor reports each newly mentioned person once per
   comment, only if FairPro offered them and never the person writing;
@@ -137,7 +139,61 @@ and the fastest of the three must be within the budget (`e2e/timing.ts`).
 Every time is written to the test's annotations and the console, and the
 test also checks that at least 25 pages were laid out.
 
-## Deploy (Vercel)
+## Deploy (AWS)
+
+The editor is moving from Vercel to S3 + CloudFront (Gayan, 15 October
+2026). Both FairPro sites, `demo.fairpro.com.au` and `app.fairpro.com.au`,
+embed the one editor at `editor.fairpro.com.au`, so `.env.production`
+allows both. The bucket, distribution and deploy role are in fairpro-infra
+(`terraform/live/production/editor`, module `static-site`);
+`runbooks/aws-app.md` there, "Editor on AWS", gives the order of the steps
+and the DNS cutover.
+
+**Release:** Actions, "AWS deploy", "Run workflow", from `main` or a tag.
+`.github/workflows/aws-deploy.yml` runs one release at a time and is never
+cancelled half way. It installs, runs `pnpm check` and `pnpm build` as CI
+and Vercel do, signs in to AWS through GitHub OIDC, then runs
+`node scripts/aws-deploy.ts deploy dist`, which:
+
+1. uploads the hashed files (`assets/name-HASH.ext`) with
+   `Cache-Control: public, max-age=31536000, immutable`;
+2. uploads the other files, `index.html` last, with `Cache-Control: no-cache`,
+   each with its Content-Type set explicitly;
+3. invalidates the unhashed paths (`/`, `/index.html`, ...) in CloudFront and
+   waits until that is done;
+4. only then deletes from the bucket the files the new build no longer has.
+
+The bucket keeps earlier versions for 30 days, so a bad release is undone by
+running the workflow again from the previous tag.
+
+**Set up once** (repository settings, Environments): an environment
+`aws-editor`, with deployment branches and tags limited to `main` and tags,
+and these variables (not secrets; from `terragrunt output`):
+
+| Variable                 | Value                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `AWS_DEPLOY_ROLE_ARN`    | `deploy_role_arn`                                                                                 |
+| `EDITOR_BUCKET`          | `bucket` (`fairpro-editor-site`)                                                                  |
+| `EDITOR_DISTRIBUTION_ID` | `distribution_id`                                                                                 |
+| `EDITOR_CHECK_URL`       | optional: `https://<cloudfront_domain>/`, then `https://editor.fairpro.com.au/` after the cutover |
+
+The deploy role trusts only this repository's `aws-editor` environment
+(GitHub's immutable subject,
+`repo:au-fairpro@337274428/fairpro-editor@1403196457:environment:aws-editor`),
+and may only put, delete and list objects in the bucket and create
+invalidations. Waiting for the invalidation also needs
+`cloudfront:GetInvalidation`, which the role does not have yet (to be added
+in fairpro-infra before the first release); until then the workflow stops
+at the wait, after the upload and the invalidation, and deletes nothing. When `EDITOR_CHECK_URL` is set, the workflow's last step
+fetches it and fails unless the Content-Security-Policy, Referrer-Policy,
+X-Content-Type-Options and Permissions-Policy are exactly those in
+`vercel.json` and `index.html` is served `no-cache`. Run the same check by
+hand with `node scripts/aws-deploy.ts check-headers <url>`.
+
+## Deploy (Vercel, until the cutover)
+
+Vercel keeps serving `editor.fairpro.com.au` until the DNS cutover in
+fairpro-infra's runbook; then the domain is removed from the Vercel project.
 
 A Vercel project in the "fairpro" team, linked to this repository, with
 production on `main`:
