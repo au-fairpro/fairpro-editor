@@ -24,12 +24,19 @@
 //   under the person's name and a comment anchored to it, created with the
 //   Document API's `comments.create` (`trackedChangeId`, `author`,
 //   `authorEmail`), says who suggested it.
+// - Spell checking (FairPro's organisation language): SuperDoc's `proofing`
+//   option draws the squiggles and the suggestions menu, and asks a
+//   provider which words are wrong. Ours runs Hunspell dictionaries in a web
+//   worker (spelling.worker.ts), in the English FairPro sends, so a Word
+//   file that says en-US is still checked in the organisation's English.
 
 import { SuperDoc } from "superdoc";
 import "superdoc/style.css";
 import type { DocumentMode, EditorUser } from "./protocol";
 import type { CommentMentions, EditorAdapter, SuggestedBy } from "./bridge";
 import { commentMentions } from "./mentions";
+import type { SpellingLanguage } from "./spelling";
+import { SpellingProvider } from "./spelling-provider";
 import {
   asMarkdownParagraphs,
   cleanText,
@@ -62,6 +69,7 @@ export class SuperDocAdapter implements EditorAdapter {
   /** The last non-empty selection, so it can be restored after FairPro's panel took focus. */
   private lastSelection: Capture | null = null;
   private stopWatching: (() => void) | null = null;
+  private spelling: SpellingProvider | null = null;
 
   constructor(private readonly options: SuperDocAdapterOptions) {}
 
@@ -74,6 +82,7 @@ export class SuperDocAdapter implements EditorAdapter {
       onSelection,
       people,
       onComment,
+      language,
     }: {
       user: EditorUser;
       mode: DocumentMode;
@@ -81,6 +90,7 @@ export class SuperDocAdapter implements EditorAdapter {
       onSelection: (text: string) => void;
       people: EditorUser[];
       onComment: (comment: CommentMentions) => void;
+      language: SpellingLanguage | null;
     },
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -102,6 +112,7 @@ export class SuperDocAdapter implements EditorAdapter {
           email: person.email,
         })),
         telemetry: { enabled: false },
+        ...this.proofing(language),
         onReady: () => {
           settled = true;
           this.watchSelection(onSelection);
@@ -123,6 +134,26 @@ export class SuperDocAdapter implements EditorAdapter {
         },
       });
     });
+  }
+
+  /** SuperDoc's spell checking in the organisation's English, or none. */
+  private proofing(language: SpellingLanguage | null) {
+    if (!language) return {};
+    this.spelling = new SpellingProvider(
+      new Worker(new URL("./spelling.worker.ts", import.meta.url), {
+        type: "module",
+      }),
+      language,
+    );
+    return {
+      proofing: {
+        enabled: true,
+        provider: this.spelling,
+        defaultLanguage: language,
+        maxSuggestions: 5,
+        visibleFirst: true,
+      },
+    };
   }
 
   async exportDocx(): Promise<Blob> {
@@ -242,5 +273,7 @@ export class SuperDocAdapter implements EditorAdapter {
     this.lastSelection = null;
     this.superdoc?.destroy();
     this.superdoc = null;
+    this.spelling?.dispose();
+    this.spelling = null;
   }
 }

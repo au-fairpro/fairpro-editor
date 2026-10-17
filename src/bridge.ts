@@ -14,6 +14,7 @@ import {
 } from "./protocol";
 import { isAllowedOrigin } from "./origins";
 import { withCommentParagraphIds } from "./comment-ids";
+import type { SpellingLanguage } from "./spelling";
 import { viaAuthor } from "./text";
 
 export const DOCX_TYPE =
@@ -35,6 +36,8 @@ export interface EditorAdapter {
       people: EditorUser[];
       /** A comment was added or changed, with the emails it mentions. */
       onComment: (comment: CommentMentions) => void;
+      /** The English to spell check in, or null for no spell checking. */
+      language: SpellingLanguage | null;
     },
   ): Promise<void>;
   exportDocx(): Promise<Blob>;
@@ -312,6 +315,7 @@ export class Bridge {
         onComment: (comment) => {
           this.commented(comment);
         },
+        language: message.language,
       });
     } catch (error) {
       this.ui.status("The document could not be opened.");

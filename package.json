@@ -23,14 +23,20 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "dependencies": {
+    "dictionary-en": "4.0.0",
+    "dictionary-en-au": "3.0.0",
+    "dictionary-en-ca": "3.0.0",
+    "dictionary-en-gb": "3.0.0",
     "fflate": "0.8.3",
-    "superdoc": "2.20.0"
+    "superdoc": "2.20.0",
+    "typo-js": "1.4.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@types/jsdom": "30.0.0",
     "@types/node": "26.6.4",
+    "@types/typo-js": "1.2.2",
     "eslint": "10.12.0",
     "globals": "17.13.0",
     "jsdom": "30.1.1",

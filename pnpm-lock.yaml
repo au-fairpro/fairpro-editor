@@ -166,12 +166,27 @@ importers:
 
   .:
     dependencies:
+      dictionary-en:
+        specifier: 4.0.0
+        version: 4.0.0
+      dictionary-en-au:
+        specifier: 3.0.0
+        version: 3.0.0
+      dictionary-en-ca:
+        specifier: 3.0.0
+        version: 3.0.0
+      dictionary-en-gb:
+        specifier: 3.0.0
+        version: 3.0.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
       superdoc:
         specifier: 2.20.0
         version: 2.20.0(@hocuspocus/provider@2.15.3(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))(typescript@6.0.3)(yjs@13.6.33)
+      typo-js:
+        specifier: 1.4.0
+        version: 1.4.0
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -185,6 +200,9 @@ importers:
       '@types/node':
         specifier: 26.6.4
         version: 26.6.4
+      '@types/typo-js':
+        specifier: 1.2.2
+        version: 1.2.2
       eslint:
         specifier: 10.12.0
         version: 10.12.0
@@ -625,6 +643,9 @@ packages:
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
 
+  '@types/typo-js@1.2.2':
+    resolution: {integrity: sha512-AgN5IwO3EPXv2d+UE9VdoOcueCBa4ZcHHwUvx2/IXlfRvkW4Yt3g+eRHzJbkySfj9pyILRT6Zk7V6Vr4LD5Kvg==}
+
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
@@ -831,6 +852,18 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dictionary-en-au@3.0.0:
+    resolution: {integrity: sha512-whC8mFW7Crmoe2wH7cbBJwF6SFy3PGaExgZ1tU3J+qCUQdzJ3gdcD/PAXeWBBwAlsPA/Su0GGDxqp7uRM5lDVg==}
+
+  dictionary-en-ca@3.0.0:
+    resolution: {integrity: sha512-MQ4VXbPv4+jDFcQq632RL2QmB+1Raq6jH/NWKTE4IsHcNXAb/l5106/xn1Dt63Ni2dRF9qfiBkk7myA//5clTA==}
+
+  dictionary-en-gb@3.0.0:
+    resolution: {integrity: sha512-gU/dwC9xGYPh/0CCcmGNXO8OwSgOySAqevcSXxADCsgUD+tr6OJ52u7XaC7No7dNssvdUSfVjkzcqLrRZq3kPA==}
+
+  dictionary-en@4.0.0:
+    resolution: {integrity: sha512-3NHnE1uq33ZE/CIwaZ6gqxa4BnglHnxeAcTM0GJ7cmtRGcvX9InMK/IqLtYcUMFCUpUNgybH+DzkqdgAo3F1zg==}
 
   entities@7.0.1:
     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
@@ -1360,6 +1393,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typo-js@1.4.0:
+    resolution: {integrity: sha512-QP5VvwpQKk+xcKCbZmkHHtmdPt53ICuV/A4a1PXJOKeu6HdtBMgweScy7Gw1gxcHv6e2lFTUIM17PUxP7/GABg==}
+
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
@@ -1877,6 +1913,8 @@ snapshots:
 
   '@types/tough-cookie@4.0.5': {}
 
+  '@types/typo-js@1.2.2': {}
+
   '@types/unist@3.0.3': {}
 
   '@types/ws@8.18.2':
@@ -2141,6 +2179,14 @@ snapshots:
   deep-is@0.1.4: {}
 
   detect-libc@2.1.2: {}
+
+  dictionary-en-au@3.0.0: {}
+
+  dictionary-en-ca@3.0.0: {}
+
+  dictionary-en-gb@3.0.0: {}
+
+  dictionary-en@4.0.0: {}
 
   entities@7.0.1: {}
 
@@ -2650,6 +2696,8 @@ snapshots:
       - supports-color
 
   typescript@6.0.3: {}
+
+  typo-js@1.4.0: {}
 
   undici-types@8.9.0: {}
 

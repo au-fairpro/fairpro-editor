@@ -26,5 +26,13 @@ and is not part of this work.
   does not contain, modify or redistribute its source, and nobody working on
   this repository may inspect, deobfuscate or reverse engineer it.
 
+- **Typo.js** (`typo-js` on npm), by Christopher Finke, BSD-3-Clause.
+  Source: <https://github.com/cfinke/Typo.js>.
+- **English Hunspell dictionaries** (`dictionary-en`, `dictionary-en-au`,
+  `dictionary-en-gb`, `dictionary-en-ca` on npm), packaged by Titus Wormer
+  from SCOWL and the en_AU, en_GB and en_CA Hunspell projects, MIT AND BSD.
+  Source: <https://github.com/wooorm/dictionaries>. The editor serves them
+  unchanged; each package's `license` file has the full terms.
+
 Other dependencies and their licences are listed in `pnpm-lock.yaml` and in
 each package under `node_modules`.
