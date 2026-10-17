@@ -40,3 +40,27 @@ export function isAllowedOrigin(
 ): boolean {
   return allowed.includes(origin);
 }
+
+/**
+ * The origin of the page the editor sits in, when the browser says it:
+ * `location.ancestorOrigins` (Chrome, Edge, Safari), else the referrer
+ * (Firefox). Only a hint for whom to greet first; every message is still
+ * checked against the allowed list.
+ */
+export function embeddingOrigin(
+  ancestorOrigins:
+    { readonly length: number; [index: number]: string } | undefined,
+  referrer: string,
+): string | null {
+  const first =
+    ancestorOrigins && ancestorOrigins.length > 0
+      ? ancestorOrigins[0]
+      : undefined;
+  if (first) return first;
+  if (!referrer) return null;
+  try {
+    return new URL(referrer).origin;
+  } catch {
+    return null;
+  }
+}

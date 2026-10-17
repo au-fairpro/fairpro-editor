@@ -97,6 +97,8 @@ export interface BridgeOptions {
   adapter: EditorAdapter;
   ui: EditorUi;
   now?: () => number;
+  /** The embedding page's origin, if the browser told it (embeddingOrigin). */
+  embeddedIn?: string | null;
 }
 
 export class Bridge {
@@ -105,6 +107,7 @@ export class Bridge {
   private readonly adapter: EditorAdapter;
   private readonly ui: EditorUi;
   private readonly now: () => number;
+  private readonly embeddedIn: string | null;
   /** The origin driving the editor, fixed by the first valid message. */
   private parentOrigin: string | null = null;
   private isOpen = false;
@@ -132,14 +135,22 @@ export class Bridge {
     this.adapter = options.adapter;
     this.ui = options.ui;
     this.now = options.now ?? (() => Date.now());
+    this.embeddedIn = options.embeddedIn ?? null;
   }
 
   start(): void {
     this.host.addEventListener("message", this.listener);
-    // The parent's origin is not known yet. A message whose target origin
-    // does not match the parent is dropped by the browser, and "ready"
-    // carries nothing, so it is safe to announce to each allowed origin.
-    for (const origin of this.allowedOrigins) {
+    // The parent's origin is not known for certain yet. When the browser
+    // names the embedding page and it is allowed, "ready" goes there only;
+    // otherwise to each allowed origin. A message whose target origin does
+    // not match the parent is dropped by the browser (with a console error,
+    // which is why the named page goes first), and "ready" carries nothing.
+    const targets =
+      this.embeddedIn !== null &&
+      isAllowedOrigin(this.embeddedIn, this.allowedOrigins)
+        ? [this.embeddedIn]
+        : this.allowedOrigins;
+    for (const origin of targets) {
       this.host.parent.postMessage(envelope({ type: "ready" }), origin);
     }
     this.ui.status("Waiting for FairPro to open a document.");

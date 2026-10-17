@@ -290,7 +290,7 @@ describe("security headers", () => {
 });
 
 describe(".env.production", () => {
-  it("lets both FairPro sites embed the one editor", () => {
+  it("lets only FairPro on AWS embed the editor (demo retired 17 October 2026)", () => {
     const line = readFileSync(
       new URL("../.env.production", import.meta.url),
       "utf8",
@@ -298,7 +298,6 @@ describe(".env.production", () => {
       .split("\n")
       .find((text) => text.startsWith("VITE_ALLOWED_PARENT_ORIGINS="));
     expect(parseAllowedOrigins(line?.split("=")[1])).toEqual([
-      "https://demo.fairpro.com.au",
       "https://app.fairpro.com.au",
     ]);
   });

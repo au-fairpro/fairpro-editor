@@ -142,9 +142,11 @@ test also checks that at least 25 pages were laid out.
 ## Deploy (AWS)
 
 The editor is moving from Vercel to S3 + CloudFront (Gayan, 15 October
-2026). Both FairPro sites, `demo.fairpro.com.au` and `app.fairpro.com.au`,
-embed the one editor at `editor.fairpro.com.au`, so `.env.production`
-allows both. The bucket, distribution and deploy role are in fairpro-infra
+2026). FairPro at `app.fairpro.com.au` embeds the editor at
+`editor.fairpro.com.au`, and `.env.production` allows only it (the demo at
+`demo.fairpro.com.au` was retired on 17 October 2026). When the browser
+names the embedding page, the editor greets only that page, so a second
+allowed origin does not log "Unable to post message" in the console. The bucket, distribution and deploy role are in fairpro-infra
 (`terraform/live/production/editor`, module `static-site`);
 `runbooks/aws-app.md` there, "Editor on AWS", gives the order of the steps
 and the DNS cutover.
@@ -202,7 +204,7 @@ production on `main`:
   `vercel.json`.
 - Domain: `editor.fairpro.com.au`.
 - Environment variable (only if it differs from `.env.production`):
-  `VITE_ALLOWED_PARENT_ORIGINS`, for example `https://demo.fairpro.com.au`.
+  `VITE_ALLOWED_PARENT_ORIGINS`, for example `https://app.fairpro.com.au`.
 
 The page is static, so nothing runs on the server.
 
