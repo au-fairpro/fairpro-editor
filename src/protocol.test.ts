@@ -35,8 +35,23 @@ describe("parseParentMessage", () => {
       user,
       mode: "suggesting",
       people: [],
+      language: "en-AU",
     });
     expect(Object.keys(result.message)).not.toContain("extra");
+  });
+
+  it.each([
+    ["en-GB", "en-GB"],
+    ["en-US", "en-US"],
+    ["en-CA", "en-CA"],
+    ["en-AU", "en-AU"],
+    ["fr-FR", null],
+    ["en-NZ", null],
+  ])("reads language %s as %s for the spell checker", (language, expected) => {
+    const result = parseParentMessage(open({ language }));
+    expect(
+      result.ok && result.message.type === "open" && result.message.language,
+    ).toBe(expected);
   });
 
   it("keeps the people who may be @mentioned, and only their name and email", () => {
@@ -81,6 +96,8 @@ describe("parseParentMessage", () => {
     ["an unknown mode", { mode: "owner" }],
     ["people that is not a list", { people: "everyone" }],
     ["a person without an email", { people: [{ name: "Kamala" }] }],
+    ["a language that is not a string", { language: 7 }],
+    ["a language that is not a tag", { language: "<script>" }],
     [
       "too many people",
       {

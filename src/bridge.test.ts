@@ -8,6 +8,7 @@ import {
   type SuggestedBy,
 } from "./bridge";
 import type { DocumentMode, EditorUser } from "./protocol";
+import type { SpellingLanguage } from "./spelling";
 
 const PARENT = "https://demo.fairpro.com.au";
 const user = { name: "Test Person", email: "test@example.com" };
@@ -18,6 +19,7 @@ class FakeAdapter implements EditorAdapter {
     mode: DocumentMode;
     user: EditorUser;
     people: EditorUser[];
+    language: SpellingLanguage | null;
   }[] = [];
   onComment: (comment: CommentMentions) => void = () => undefined;
   modes: DocumentMode[] = [];
@@ -42,6 +44,7 @@ class FakeAdapter implements EditorAdapter {
       onSelection: (text: string) => void;
       people: EditorUser[];
       onComment: (comment: CommentMentions) => void;
+      language: SpellingLanguage | null;
     },
   ) {
     if (this.failOpen) return Promise.reject(this.failOpen);
@@ -50,6 +53,7 @@ class FakeAdapter implements EditorAdapter {
       mode: options.mode,
       user: options.user,
       people: options.people,
+      language: options.language,
     });
     this.onChange = options.onChange;
     this.onComment = options.onComment;
@@ -179,6 +183,8 @@ describe("Bridge", () => {
     expect(t.adapter.opened).toHaveLength(1);
     expect(t.adapter.opened[0]?.mode).toBe("suggesting");
     expect(t.adapter.opened[0]?.file.name).toBe("MSA.docx");
+    // An open without a language spell checks in Australian English.
+    expect(t.adapter.opened[0]?.language).toBe("en-AU");
     expect(t.sent.at(-1)).toEqual({
       message: {
         type: "loaded",
@@ -189,6 +195,11 @@ describe("Bridge", () => {
       origin: PARENT,
       transfer: [],
     });
+  });
+
+  it("spell checks in the organisation's English", async () => {
+    await t.deliver({ ...openMessage(), language: "en-US" });
+    expect(t.adapter.opened[0]?.language).toBe("en-US");
   });
 
   it("ignores messages from origins that are not allowed", async () => {
