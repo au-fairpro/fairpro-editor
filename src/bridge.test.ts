@@ -77,7 +77,7 @@ class FakeAdapter implements EditorAdapter {
   }
 }
 
-function setup(now = () => 0) {
+function setup(now = () => 0, embeddedIn: string | null = null) {
   const sent: {
     message: Record<string, unknown>;
     origin: string;
@@ -105,6 +105,7 @@ function setup(now = () => 0) {
     adapter,
     ui,
     now,
+    embeddedIn,
   });
   const deliver = (data: unknown, origin = PARENT, source: unknown = parent) =>
     bridge.receive({ data, origin, source } as MessageEvent);
@@ -153,6 +154,23 @@ describe("Bridge", () => {
     expect(t.sent.map((s) => [s.message.type, s.origin])).toEqual([
       ["ready", PARENT],
       ["ready", "http://localhost:3000"],
+    ]);
+  });
+
+  it("greets only the embedding page when the browser names an allowed one", () => {
+    const named = setup(() => 0, PARENT);
+    named.bridge.start();
+    expect(named.sent.map((s) => [s.message.type, s.origin])).toEqual([
+      ["ready", PARENT],
+    ]);
+  });
+
+  it("ignores a named page that is not allowed, and greets each allowed one", () => {
+    const named = setup(() => 0, "https://evil.example");
+    named.bridge.start();
+    expect(named.sent.map((s) => s.origin)).toEqual([
+      PARENT,
+      "http://localhost:3000",
     ]);
   });
 

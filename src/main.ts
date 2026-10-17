@@ -1,6 +1,6 @@
 import "./style.css";
 import { Bridge, type EditorUi } from "./bridge";
-import { parseAllowedOrigins } from "./origins";
+import { embeddingOrigin, parseAllowedOrigins } from "./origins";
 import { SuperDocAdapter } from "./superdoc-adapter";
 
 const statusEl = document.querySelector<HTMLElement>("#status");
@@ -42,6 +42,10 @@ if (window.parent === window) {
       toolbarSelector: "#toolbar",
     }),
     ui,
+    embeddedIn: embeddingOrigin(
+      window.location.ancestorOrigins,
+      document.referrer,
+    ),
   });
   bridge.start();
 }
