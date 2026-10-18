@@ -1,5 +1,11 @@
 // @vitest-environment node
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -56,8 +62,30 @@ describe("contentType", () => {
     ["assets/index-Dgxez1U6.css", "text/css; charset=utf-8"],
     ["assets/engine-Bf4hR1VC.wasm", "application/wasm"],
     ["assets/font-Bf4hR1VC.woff2", "font/woff2"],
+    ["assets/index-BG_aWxfv.dic", "text/plain; charset=utf-8"],
+    ["assets/index-Bf4hR1VC.aff", "text/plain; charset=utf-8"],
   ])("serves %s as %s", (key, type) => {
     expect(contentType(key)).toBe(type);
+  });
+
+  // A file imported with ?url is copied to the build under its own
+  // extension, so each one needs a Content-Type or the deploy stops.
+  it("knows every file type the source imports as a URL", () => {
+    const src = join(import.meta.dirname, "../src");
+    const imported = readdirSync(src, { recursive: true, encoding: "utf8" })
+      .filter((name) => /\.(?:ts|vue)$/.test(name))
+      .flatMap((name) => [
+        ...readFileSync(join(src, name), "utf8").matchAll(
+          /from\s+"([^"]+)\?url"/g,
+        ),
+      ])
+      .map((match) => match[1] ?? "");
+    expect(imported.length).toBeGreaterThan(0);
+    for (const path of imported) {
+      expect(() =>
+        contentType(`assets/${path.split("/").pop() ?? ""}`),
+      ).not.toThrow();
+    }
   });
 
   it("refuses a file it does not know, rather than letting S3 guess", () => {
