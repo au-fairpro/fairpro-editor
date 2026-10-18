@@ -48,16 +48,18 @@ added to version 1 on 3 October 2026; an older FairPro never sends or reads
 them, so the version did not change. `open`'s `people` and the
 `mentioned` message were added on 5 October 2026 the same way: without
 `people` nobody is offered after @ in a comment. `insertText`'s optional
-`via` was added on 5 October 2026 too; an older editor ignores it. The shapes are in
+`via` was added on 5 October 2026 too; an older editor ignores it.
+`open`'s `language` was added on 18 October 2026: without it the editor spell
+checks in Australian English, and an older editor ignores it. The shapes are in
 [`src/protocol.ts`](src/protocol.ts).
 
-| From FairPro | Fields                                          |
-| ------------ | ----------------------------------------------- |
-| `open`       | `fileName`, `bytes`, `user`, `mode`, `people`   |
-| `save`       | `requestId`                                     |
-| `setMode`    | `mode`: `editing`, `suggesting`, `viewing`      |
-| `lockLost`   | `message`                                       |
-| `insertText` | `requestId`, `text`, `replaceSelection`, `via?` |
+| From FairPro | Fields                                                     |
+| ------------ | ---------------------------------------------------------- |
+| `open`       | `fileName`, `bytes`, `user`, `mode`, `people`, `language?` |
+| `save`       | `requestId`                                                |
+| `setMode`    | `mode`: `editing`, `suggesting`, `viewing`                 |
+| `lockLost`   | `message`                                                  |
+| `insertText` | `requestId`, `text`, `replaceSelection`, `via?`            |
 
 | From the editor | Fields                                              |
 | --------------- | --------------------------------------------------- |
@@ -70,6 +72,27 @@ them, so the version did not change. `open`'s `people` and the
 | `inserted`      | `requestId`                                         |
 | `mentioned`     | `emails` (at most 20) newly @mentioned in a comment |
 | `error`         | `code`, `message`, `requestId` when it has one      |
+
+### Spell checking
+
+FairPro sends the organisation's English in `open`'s `language`: `en-AU`
+(the default), `en-GB`, `en-US` or `en-CA`. The editor checks the
+document's English text against that Hunspell dictionary, whatever English
+the Word file itself names (Word files often say `en-US` because that is
+Word's default), and skips text the file marks as another language. A
+language the editor has no dictionary for turns spell checking off.
+
+SuperDoc draws the red squiggles and offers suggestions on right-click
+through its `proofing` option; the editor supplies the provider
+(`src/spelling-provider.ts`). The words are checked by
+[Typo.js](https://github.com/cfinke/Typo.js) in a web worker
+(`src/spelling.worker.ts`), with the dictionaries from
+[wooorm/dictionaries](https://github.com/wooorm/dictionaries) served by
+the editor itself, so nothing about the document leaves the page.
+Acronyms (ABN), names with an inner capital (FairPro), and anything with a
+digit, `@` or `/` are not checked, and a short list of contract words the
+dictionaries lack (Pty, counterparty, novation and others, in
+`src/spelling.ts`) is accepted in every English.
 
 ### Security
 

@@ -12,9 +12,10 @@ async function openSample(
   page: Page,
   mode = "suggesting",
   people: { name: string; email: string }[] = [],
+  language?: string,
 ) {
   await page.evaluate(
-    async ({ mode, people }) => {
+    async ({ mode, people, language }) => {
       const bytes = await (await fetch("/sample.docx")).arrayBuffer();
       const w = window as unknown as {
         sendToEditor: (m: object, t?: Transferable[]) => void;
@@ -27,11 +28,12 @@ async function openSample(
           user: { name: "Test Person", email: "test@example.com" },
           mode,
           people,
+          ...(language === undefined ? {} : { language }),
         },
         [bytes],
       );
     },
-    { mode, people },
+    { mode, people, language },
   );
 }
 
@@ -322,3 +324,50 @@ test("offers FairPro's people after @ in a comment and reports who was mentioned
   expect(mentioned.emails).toEqual(["kamala@example.com"]);
   expect(errors).toEqual([]);
 });
+
+// SuperDoc draws the squiggles with the CSS Custom Highlight API, so the
+// marked words are read from the "sd-proofing-spelling" highlight's ranges.
+async function misspelt(page: Page): Promise<string[]> {
+  const frame = page.frame({ url: /localhost:5180/ });
+  if (!frame) throw new Error("no editor frame");
+  return frame.evaluate(() => {
+    const highlight = CSS.highlights.get("sd-proofing-spelling");
+    return highlight
+      ? [...highlight].map((range) => (range as Range).toString())
+      : [];
+  });
+}
+
+for (const { language, wrong, right } of [
+  { language: undefined, wrong: "organization", right: "organisation" },
+  { language: "en-US", wrong: "organisation", right: "organization" },
+]) {
+  test(`spell checks in ${language ?? "Australian English by default"}`, async ({
+    page,
+  }) => {
+    const errors = watchSecurityErrors(page);
+    await page.goto("http://localhost:5181/");
+    await waitFor(page, "ready");
+    await openSample(page, "suggesting", [], language);
+    await waitFor(page, "loaded");
+    await page
+      .frameLocator("#editor")
+      .locator(".superdoc-text-run", {
+        hasText: "pay each invoice within 30 days",
+      })
+      .click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(` The ${right} and the ${wrong} agree.`, {
+      delay: 10,
+    });
+    await expect
+      .poll(() => misspelt(page), { timeout: 15_000 })
+      .toContain(wrong);
+    const marked = await misspelt(page);
+    expect(marked).not.toContain(right);
+    // "Pty Ltd" is part of an Australian company's name, not a slip.
+    expect(marked).not.toContain("Pty");
+    // The dictionaries come from the editor itself, never another host.
+    expect(errors).toEqual([]);
+  });
+}

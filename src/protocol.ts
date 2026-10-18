@@ -10,6 +10,12 @@
 // messages from browser extensions or other frames, and so the protocol
 // can change without guessing.
 
+import {
+  DEFAULT_SPELLING_LANGUAGE,
+  isSpellingLanguage,
+  type SpellingLanguage,
+} from "./spelling";
+
 export const PROTOCOL_VERSION = 1;
 export const PARENT_SOURCE = "fairpro";
 export const EDITOR_SOURCE = "fairpro-editor";
@@ -54,6 +60,13 @@ export type ParentMessage =
        * the editor only offers these names. Empty when nobody may be.
        */
       people: EditorUser[];
+      /**
+       * The organisation's English, which the spell checker uses (en-AU,
+       * en-GB, en-US or en-CA). Optional: an older FairPro sends none and
+       * gets Australian English; a language this editor does not know turns
+       * spell checking off rather than refusing the document.
+       */
+      language: SpellingLanguage | null;
     }
   | { type: "save"; requestId: string }
   | { type: "setMode"; mode: DocumentMode }
@@ -154,6 +167,22 @@ function parsePeople(value: unknown): EditorUser[] | null {
 }
 
 /**
+ * The spell checker's language: Australian English when FairPro sends none,
+ * null (no spell checking) for a tag this editor has no dictionary for, and
+ * undefined when the value is not a language tag at all.
+ */
+function parseLanguage(value: unknown): SpellingLanguage | null | undefined {
+  if (value === undefined) return DEFAULT_SPELLING_LANGUAGE;
+  if (isSpellingLanguage(value)) return value;
+  if (
+    typeof value === "string" &&
+    /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/.test(value)
+  )
+    return null;
+  return undefined;
+}
+
+/**
  * Checks a message from FairPro. Anything that is not exactly one of the
  * shapes above is refused, so a wrong or hostile message never reaches
  * SuperDoc.
@@ -203,6 +232,10 @@ export function parseParentMessage(data: unknown): ParseResult {
           reason: `people must be at most ${String(MAX_PEOPLE)} people with a name and an email`,
         };
       }
+      const language = parseLanguage(data.language);
+      if (language === undefined) {
+        return { ok: false, reason: "language must be a language tag" };
+      }
       return {
         ok: true,
         message: {
@@ -212,6 +245,7 @@ export function parseParentMessage(data: unknown): ParseResult {
           user: { name: user.name, email: user.email },
           mode: data.mode,
           people,
+          language,
         },
       };
     }
