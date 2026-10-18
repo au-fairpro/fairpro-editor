@@ -51,6 +51,10 @@ const CONTENT_TYPES: Record<string, string> = {
   json: "application/json",
   map: "application/json",
   txt: "text/plain; charset=utf-8",
+  // Hunspell dictionaries for the spell check (spelling.worker.ts), which
+  // the worker reads as text; dictionary-en-* declare SET UTF-8.
+  aff: "text/plain; charset=utf-8",
+  dic: "text/plain; charset=utf-8",
   wasm: "application/wasm",
   svg: "image/svg+xml",
   png: "image/png",
