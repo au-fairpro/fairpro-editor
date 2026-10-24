@@ -231,6 +231,17 @@ production on `main`:
 
 The page is static, so nothing runs on the server.
 
+## Versions lifted by overrides
+
+`pnpm-workspace.yaml` lifts two packages past what their parents ask for,
+after the security review of 24 October 2026:
+
+- **pdfjs-dist 6.x** (SuperDoc 2.20.0 asks for ^5.4.296): 5.6.83 to 6.2.107
+  can run a malicious PDF's JavaScript (GHSA-hq66-cqwq-w95j). The editor
+  only opens Word files, and its end-to-end tests pass on 6.x. Drop the
+  override once SuperDoc depends on a fixed version.
+- **undici 8.12.2** (through jsdom, tests only).
+
 ## Versions held back
 
 - **TypeScript 6.0.3, not 7.0.** typescript-eslint 8.71.0 supports
